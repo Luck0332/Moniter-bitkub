@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bitkub Liquidity Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>Bitkub Liquidity Monitor</h1>
+        <div class="controls">
+            <label>
+                Depth:
+                <input type="number" id="depthInput" value="90" min="1" max="100" step="1">
+                <span>%</span>
+            </label>
+            <label>
+                Threshold:
+                <input type="number" id="thresholdInput" value="-3.5" min="-50" max="0" step="0.1">
+                <span>%</span>
+            </label>
+            <button id="refreshBtn" onclick="fetchSummary()">Refresh</button>
+            <span id="lastUpdate" class="timestamp"></span>
+            <label class="auto-refresh">
+                <input type="checkbox" id="autoRefresh" checked>
+                Auto (30s)
+            </label>
+        </div>
+    </header>
+
+    <main>
+        <!-- Summary Table -->
+        <section id="summarySection">
+            <h2>Summary - Liquidity Overview</h2>
+            <table id="summaryTable">
+                <thead>
+                    <tr>
+                        <th>Coin</th>
+                        <th>Best Bid (THB)</th>
+                        <th>Vol Used (input)</th>
+                        <th>Liquidity Depth (THB)</th>
+                        <th>Slippage</th>
+                        <th>Safe Vol (Threshold)</th>
+                        <th>Safe THB</th>
+                        <th>Scenario -5%</th>
+                        <th>Enough?</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody id="summaryBody">
+                    <tr><td colspan="10" class="loading">Loading...</td></tr>
+                </tbody>
+            </table>
+        </section>
+
+        <!-- Detail Section -->
+        <section id="detailSection" class="hidden">
+            <div class="detail-header">
+                <h2 id="detailTitle">-</h2>
+                <button onclick="closeDetail()">Close</button>
+            </div>
+
+            <!-- Custom Vol input for detail -->
+            <div class="detail-vol-input">
+                <label>
+                    Custom Vol Used:
+                    <input type="number" id="detailVolInput" placeholder="" min="0" step="any">
+                </label>
+                <button onclick="recalcDetail()">Recalculate</button>
+                <button class="btn-reset" onclick="resetDetailVol()">Reset to auto</button>
+            </div>
+
+            <div class="detail-metrics">
+                <div class="metric-card">
+                    <span class="label">Best Bid</span>
+                    <span class="value" id="dBestBid">-</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">Vol Used</span>
+                    <span class="value" id="dVolUsed">-</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">Vol Received (THB)</span>
+                    <span class="value" id="dVolReceived">-</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">Diff</span>
+                    <span class="value" id="dDiff">-</span>
+                </div>
+                <div class="metric-card">
+                    <span class="label">Slippage</span>
+                    <span class="value" id="dSlippage">-</span>
+                </div>
+                <div class="metric-card highlight-card">
+                    <span class="label">Safe Vol (Threshold <span id="dThresholdLabel">-3.5%</span>)</span>
+                    <span class="value" id="dSafeVol">-</span>
+                </div>
+                <div class="metric-card highlight-card">
+                    <span class="label">Safe THB</span>
+                    <span class="value" id="dSafeThb">-</span>
+                </div>
+            </div>
+
+            <!-- Order Book at Depth -->
+            <h3>Order Book - Bid Side (at <span id="depthLabel">90</span>% depth)</h3>
+            <div class="table-scroll">
+                <table id="detailTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Amount</th>
+                            <th>Bid Price</th>
+                            <th>Bid Size (THB)</th>
+                            <th>Accru Amount</th>
+                            <th>Amount Match</th>
+                            <th>Sales Matched (THB)</th>
+                            <th>Accru Matched (THB)</th>
+                            <th>Slippage</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailBody"></tbody>
+                </table>
+            </div>
+
+            <!-- Scenario -5% -->
+            <div class="scenario-box">
+                <h3>Scenario -5% Slippage Test</h3>
+                <div class="detail-metrics">
+                    <div class="metric-card">
+                        <span class="label">Expected Size</span>
+                        <span class="value" id="sExpected">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Min Size</span>
+                        <span class="value" id="sMinSize">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Test Value (95%)</span>
+                        <span class="value" id="sTestValue">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Vol Needed</span>
+                        <span class="value" id="sVolNeeded">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Vol Received</span>
+                        <span class="value" id="sVolReceived">-</span>
+                    </div>
+                    <div class="metric-card">
+                        <span class="label">Scenario Slippage</span>
+                        <span class="value" id="sSlippage">-</span>
+                    </div>
+                </div>
+                <div class="table-scroll">
+                    <table id="scenarioTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Amount</th>
+                                <th>Bid Price</th>
+                                <th>Bid Size (THB)</th>
+                                <th>Accru Amount</th>
+                                <th>Amount Match</th>
+                                <th>Sales Matched (THB)</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scenarioBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
