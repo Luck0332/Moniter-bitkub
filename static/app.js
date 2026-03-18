@@ -146,6 +146,7 @@ async function openModal(){
   document.getElementById('fLoanId').value='';document.getElementById('fCollateralAmt').value='';
   document.getElementById('fInitCollateralVal').value='';document.getElementById('fLoanAmt').value='';
   document.getElementById('fDailyRate').value='0.041666667';
+  document.getElementById('fEndDate').value='';
   document.getElementById('modalOverlay').classList.add('show');
 }
 function closeModal(){document.getElementById('modalOverlay').classList.remove('show')}
@@ -157,6 +158,7 @@ async function createLoan(){
     ltv_ratio:parseInt(document.getElementById('fLtv').value)||0,
     daily_interest_rate:parseFloat(document.getElementById('fDailyRate').value)||0,
     start_date:document.getElementById('fStartDate').value,
+    end_date:document.getElementById('fEndDate').value||null,
     status:document.getElementById('fStatus').value};
   if(!d.id||!d.asset_type){alert('Please fill Loan ID and Asset Type');return}
   await fetch('/api/loans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});

@@ -110,7 +110,7 @@ def create_loan(loan_data: dict) -> dict:
         "ltv_ratio": int(loan_data["ltv_ratio"]),
         "daily_interest_rate": float(loan_data["daily_interest_rate"]),
         "start_date": loan_data["start_date"],
-        "end_date": None,
+        "end_date": loan_data.get("end_date") or None,
         "status": loan_data.get("status", "active"),
         "created_at": datetime.now().isoformat(),
     }
