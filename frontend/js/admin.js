@@ -1,85 +1,38 @@
-// Liberix Monitor v2 — API-backed Frontend
-const ASSETS_SHOW = ['BTC','USDT','ETH','BNB','SOL'];
-const ASSET_COLORS = {BTC:'#f7931a',USDT:'#26a17b',ETH:'#627eea',BNB:'#f3ba2f',SOL:'#9945ff',ADA:'#3366ff',DOT:'#e6007a',TRX:'#ef0027',XRP:'#8b949e',DOGE:'#c2a633',WLD:'#8b949e',TON:'#0098ea',SUI:'#4da2ff',AVAX:'#e84142',POL:'#8247e5'};
+// Admin — Loans, Liquidity, Lock
 const PASSCODE_HASH = '2440809e3ec26b00648124b65a81946fff578a91c8365009ffe4dd0e964af874';
-let prices = {};
-let lastPriceFetch = null;
+const ASSETS_SHOW = ['BTC','USDT','ETH','BNB','SOL'];
 let currentLiqCoin = null;
 
-// ── Formatting ──
-function fmtThb(n){return '฿'+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}
-function fmtNum(n,d=2){return Number(n).toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}
-function fmtPct(n){return n==null||isNaN(n)?'-':n.toFixed(3)+'%'}
-function ltvColor(v){return v<60?'var(--green)':v<80?'var(--orange)':'var(--red)'}
-function ltvClass(v){return v<60?'ltv-safe':v<80?'ltv-warn':'ltv-danger'}
-function slipClass(p){if(p==null)return'';const t=Math.abs(getThreshold());return Math.abs(p)<t*.5?'slip-ok':Math.abs(p)<t?'slip-warn':'slip-danger'}
-function getDepth(){return(parseFloat(document.getElementById('depthInput')?.value)||90)/100}
-function getThreshold(){return parseFloat(document.getElementById('thresholdInput')?.value)||-3.5}
-
-// ── Navigation (Landing) ──
-function enterUserMode(){
-  document.getElementById('landingOverlay').classList.add('hidden');
-  document.getElementById('userOverlay').classList.add('show');
-  document.getElementById('userLoanInput').focus();
-}
-async function enterAdminMode(){
-  document.getElementById('landingOverlay').classList.add('hidden');
-  if(sessionStorage.getItem('liberix-admin')){
-    document.getElementById('appRoot').classList.add('visible');
-    document.getElementById('appRoot').classList.remove('locked');
-    loadActiveLoans(); return;
-  }
-  document.getElementById('lockOverlay').classList.add('show');
-  setTimeout(()=>document.getElementById('lockInput').focus(),400);
-}
-function backToLanding(){
-  document.getElementById('userOverlay').classList.remove('show');
-  document.getElementById('lockOverlay').classList.remove('show');
-  document.getElementById('lockOverlay').classList.remove('unlocked');
-  document.getElementById('appRoot').classList.remove('visible');
-  clearLoanResult();
-  document.getElementById('lockInput').value='';document.getElementById('lockError').textContent='';
-  document.getElementById('landingOverlay').classList.remove('hidden');
-}
-function adminLogout(){sessionStorage.removeItem('liberix-admin');backToLanding()}
-
-// ── Lock ──
+// ── Lock / Unlock ──
 async function hashPasscode(s){const d=new TextEncoder().encode(s);const h=await crypto.subtle.digest('SHA-256',d);return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('')}
+
 async function attemptUnlock(){
   const inp=document.getElementById('lockInput'),err=document.getElementById('lockError');
   if(await hashPasscode(inp.value)===PASSCODE_HASH){
-    document.getElementById('lockOverlay').classList.add('unlocked');
+    document.getElementById('lockOverlay').classList.remove('show');
     document.getElementById('appRoot').classList.add('visible');
     document.getElementById('appRoot').classList.remove('locked');
     sessionStorage.setItem('liberix-admin','1');
     inp.value='';err.textContent='';loadActiveLoans();
   }else{inp.classList.add('error');err.textContent='Incorrect passcode.';setTimeout(()=>inp.classList.remove('error'),500);inp.value='';inp.focus()}
 }
+
 function lockApp(){
-  document.getElementById('lockOverlay').classList.remove('unlocked');
   document.getElementById('lockOverlay').classList.add('show');
   document.getElementById('appRoot').classList.add('locked');
   document.getElementById('lockInput').value='';
   setTimeout(()=>document.getElementById('lockInput').focus(),400);
 }
 
-// ── Prices ──
-async function fetchPrices(){
-  try{
-    const r=await fetch('/api/prices');prices=await r.json();lastPriceFetch=new Date();
-    renderPricePanel();renderPriceStatus();
-  }catch(e){console.error('Price fetch:',e)}
-}
-function renderPricePanel(){
-  const el=document.getElementById('pricePanel');if(!el)return;
-  el.innerHTML=ASSETS_SHOW.map(a=>`<div class="price-row"><div class="price-asset"><span class="price-dot" style="background:${ASSET_COLORS[a]||'#888'}"></span>${a}</div><span class="price-val">${fmtNum(prices[a]||0,0)}</span></div>`).join('');
-}
-function renderPriceStatus(){
-  const els=[document.getElementById('priceStatus'),document.getElementById('userPriceStatus')];
-  els.forEach(el=>{if(!el)return;if(lastPriceFetch){const s=Math.round((Date.now()-lastPriceFetch)/1000);const t=s<60?'just now':Math.floor(s/60)+'m ago';el.innerHTML='<span style="color:var(--green)">● Live</span> · '+t}else{el.innerHTML='<span style="color:var(--text-3)">loading...</span>'}});
+// Auto-login if session exists
+if(sessionStorage.getItem('liberix-admin')){
+  document.getElementById('lockOverlay').classList.remove('show');
+  document.getElementById('appRoot').classList.add('visible');
+  document.getElementById('appRoot').classList.remove('locked');
+  setTimeout(loadActiveLoans,100);
 }
 
-// ── Admin Pages ──
+// ── Sidebar Pages ──
 function showPage(page){
   ['pageLoan','pageLiquidity','pageClosed'].forEach(p=>document.getElementById(p).style.display='none');
   document.querySelectorAll('.sidebar-link').forEach(l=>l.classList.remove('active'));
@@ -89,6 +42,12 @@ function showPage(page){
   document.querySelector(`.sidebar-link[data-page="${page}"]`)?.classList.add('active');
 }
 
+// ── Price Panel (sidebar) ──
+function renderPricePanel(){
+  const el=document.getElementById('pricePanel');if(!el)return;
+  el.innerHTML=ASSETS_SHOW.map(a=>`<div class="price-row"><div class="price-asset"><span class="price-dot" style="background:${ASSET_COLORS[a]||'#888'}"></span>${a}</div><span class="price-val">${fmtNum(prices[a]||0,0)}</span></div>`).join('');
+}
+
 // ── Loans ──
 async function loadActiveLoans(){
   try{const r=await fetch('/api/loans?status=active');const d=await r.json();renderSummary(d.loans);renderLoanCards(d.loans,'loansGrid','emptyState')}catch(e){console.error(e)}
@@ -96,6 +55,7 @@ async function loadActiveLoans(){
 async function loadClosedLoans(){
   try{const r=await fetch('/api/loans?status=closed');const d=await r.json();renderLoanCards(d.loans,'closedGrid','closedEmpty')}catch(e){console.error(e)}
 }
+
 function renderSummary(loans){
   const el=document.getElementById('summaryStrip');if(!loans.length){el.innerHTML='';return}
   const tv=loans.reduce((s,l)=>s+l.loan_amount,0);
@@ -107,6 +67,7 @@ function renderSummary(loans){
     <div class="summary-card orange"><div class="summary-label">Total Repayment</div><div class="summary-value">${fmtThb(tr)}</div><div class="summary-sub">incl. accrued interest</div></div>
     <div class="summary-card purple"><div class="summary-label">Total Collateral Value</div><div class="summary-value">${fmtThb(tc)}</div><div class="summary-sub">at current prices</div></div>`;
 }
+
 function renderLoanCards(loans,gridId,emptyId){
   const grid=document.getElementById(gridId),empty=document.getElementById(emptyId);
   if(!loans.length){grid.innerHTML='';if(empty)empty.style.display='';return}
@@ -137,7 +98,7 @@ function renderLoanCards(loans,gridId,emptyId){
     </div>`}).join('');
 }
 
-// ── Modal ──
+// ── Loan Actions ──
 async function openModal(){
   const r=await fetch('/api/loan-config');const c=await r.json();
   document.getElementById('fAssetType').innerHTML='<option value="">Select asset...</option>'+c.asset_types.map(a=>`<option value="${a}">${a}</option>`).join('');
@@ -145,14 +106,11 @@ async function openModal(){
   document.getElementById('fStartDate').value=new Date().toISOString().split('T')[0];
   document.getElementById('fLoanId').value='';document.getElementById('fCollateralAmt').value='';
   document.getElementById('fInitCollateralVal').value='';document.getElementById('fLoanAmt').value='';
-  document.getElementById('fDailyRate').value='0.041666667';
-  document.getElementById('fEndDate').value='';
+  document.getElementById('fDailyRate').value='0.041666667';document.getElementById('fEndDate').value='';
   document.getElementById('modalOverlay').classList.add('show');
-  // Wire up auto-calc on every relevant field
   ['fAssetType','fCollateralAmt','fLtv'].forEach(id=>{
     const el=document.getElementById(id);
-    el.addEventListener('input',autoCalcModal);
-    el.addEventListener('change',autoCalcModal);
+    el.addEventListener('input',autoCalcModal);el.addEventListener('change',autoCalcModal);
   });
 }
 function closeModal(){document.getElementById('modalOverlay').classList.remove('show')}
@@ -190,47 +148,11 @@ async function deleteLoan(id){
   await fetch('/api/loans/'+id,{method:'DELETE'});loadActiveLoans();
 }
 
-// ── User Lookup ──
-async function userLookupLoan(){
-  const id=document.getElementById('userLoanInput').value.trim();const err=document.getElementById('userLookupError');
-  if(!id){err.textContent='Please enter a Loan ID.';return}
-  try{const r=await fetch('/api/loans/'+id);const d=await r.json();
-    if(d.error){err.textContent='No loan found with ID "'+id+'".';return}
-    err.textContent='';renderUserLoanCard(d);
-  }catch(e){err.textContent='Error: '+e.message}
-}
-function renderUserLoanCard(l){
-  document.getElementById('userLookupBox').style.display='none';
-  document.getElementById('userLoanResult').classList.add('show');
-  const ltv=l.current_ltv||0;const lc=ltvClass(ltv);const a=l.asset_type.toLowerCase();
-  document.getElementById('userLoanCard').innerHTML=`
-    <div class="user-loan-card-header"><div class="user-loan-card-id"><span class="asset-chip ${a}">${l.asset_type}</span>${l.id}</div><span class="status-badge status-${l.status}">${l.status.replace('_',' ').toUpperCase()}</span></div>
-    <div class="user-loan-card-body"><div class="user-loan-grid">
-      <div class="user-loan-field"><div class="user-loan-field-label">Collateral Amount</div><div class="user-loan-field-value">${fmtNum(l.collateral_amount,6)} ${l.asset_type}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Init. Collateral Value</div><div class="user-loan-field-value">${fmtThb(l.initial_collateral_value)}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Loan Amount</div><div class="user-loan-field-value large">${fmtThb(l.loan_amount)}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">LTV at Origination</div><div class="user-loan-field-value">${l.ltv_ratio}%</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Daily Interest Rate</div><div class="user-loan-field-value">${l.daily_interest_rate}%</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Start Date</div><div class="user-loan-field-value">${l.start_date}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">End Date</div><div class="user-loan-field-value">${l.end_date||'Open (no end date)'}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Duration</div><div class="user-loan-field-value">${l.duration_days} days</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Accrued Interest</div><div class="user-loan-field-value">${fmtThb(l.accrued_interest)}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Total Repayment</div><div class="user-loan-field-value large highlight">${fmtThb(l.total_repayment)}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Current Price</div><div class="user-loan-field-value">${fmtThb(l.current_price)}</div></div>
-      <div class="user-loan-field"><div class="user-loan-field-label">Current Collateral Value</div><div class="user-loan-field-value">${fmtThb(l.current_collateral_value)}</div></div>
-    </div>
-    <div style="padding:16px 0 8px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <span class="user-loan-field-label">Current LTV</span><span style="font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:700;color:${ltvColor(ltv)}">${fmtNum(ltv,2)}%</span>
-    </div><div class="ltv-bar-wrap"><div class="ltv-bar-track"><div class="ltv-bar-fill ${lc}" style="width:${Math.min(100,ltv)}%"></div></div></div></div></div>
-    <div class="user-loan-card-footer"><div class="user-loan-timestamp">Queried ${new Date().toLocaleString()}</div><span style="font-size:11px;color:var(--text-3)">Read-only view</span></div>`;
-}
-function clearLoanResult(){
-  document.getElementById('userLoanResult').classList.remove('show');
-  document.getElementById('userLookupBox').style.display='';
-  document.getElementById('userLoanInput').value='';document.getElementById('userLookupError').textContent='';
-}
-
 // ── Liquidity Monitor ──
+function getDepth(){return(parseFloat(document.getElementById('depthInput')?.value)||90)/100}
+function getThreshold(){return parseFloat(document.getElementById('thresholdInput')?.value)||-3.5}
+function slipClass(p){if(p==null)return'';const t=Math.abs(getThreshold());return Math.abs(p)<t*.5?'slip-ok':Math.abs(p)<t?'slip-warn':'slip-danger'}
+
 async function fetchLiqSummary(){
   const btn=document.getElementById('refreshBtn');btn.textContent='...';btn.disabled=true;
   try{const r=await fetch(`/api/summary?depth=${getDepth()}&threshold=${getThreshold()/100}`);const d=await r.json();
@@ -297,10 +219,5 @@ function closeLiqDetail(){document.getElementById('liqDetailSection').style.disp
 
 // ── Keyboard ──
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){closeModal();closeLiqDetail()}});
-
-// ── Init ──
-(async function(){
-  fetchPrices();setInterval(fetchPrices,60000);setInterval(renderPriceStatus,30000);
-  document.getElementById('depthInput')?.addEventListener('change',fetchLiqSummary);
-  document.getElementById('thresholdInput')?.addEventListener('change',fetchLiqSummary);
-})();
+document.getElementById('depthInput')?.addEventListener('change',fetchLiqSummary);
+document.getElementById('thresholdInput')?.addEventListener('change',fetchLiqSummary);
