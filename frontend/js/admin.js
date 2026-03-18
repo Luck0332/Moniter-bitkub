@@ -155,7 +155,7 @@ function slipClass(p){if(p==null)return'';const t=Math.abs(getThreshold());retur
 
 async function fetchLiqSummary(){
   const btn=document.getElementById('refreshBtn');btn.textContent='...';btn.disabled=true;
-  try{const r=await fetch(`/api/summary?depth=${getDepth()}&threshold=${getThreshold()/100}`);const d=await r.json();
+  try{const r=await fetch(`${API_BASE}/api/summary?depth=${getDepth()}&threshold=${getThreshold()/100}`);const d=await r.json();
     renderLiqSummary(d);document.getElementById('lastUpdate').textContent='Updated: '+new Date(d.timestamp).toLocaleTimeString();
   }catch(e){document.getElementById('liqBody').innerHTML=`<tr><td colspan="8" class="loading">Error: ${e.message}</td></tr>`}
   finally{btn.textContent='Refresh';btn.disabled=false}
@@ -175,7 +175,7 @@ function renderLiqSummary(data){
 }
 async function recalcLiqCoin(coin){
   const v=parseFloat(document.getElementById('vol_'+coin)?.value);if(!v||v<=0)return;
-  const r=await fetch(`/api/orderbook/${coin}?depth=${getDepth()}&custom_vol=${v}&threshold=${getThreshold()/100}`);
+  const r=await fetch(`${API_BASE}/api/orderbook/${coin}?depth=${getDepth()}&custom_vol=${v}&threshold=${getThreshold()/100}`);
   const d=await r.json();const row=document.getElementById('vol_'+coin).closest('tr').querySelectorAll('td');
   row[3].textContent=fmtNum(d.vol_received,2);row[4].className=slipClass(d.slippage);row[4].textContent=fmtPct(d.slippage);
   row[5].innerHTML=d.safety.is_safe?'<span class="badge-safe">SAFE</span>':fmtNum(d.safety.safe_vol,4);
