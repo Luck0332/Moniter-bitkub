@@ -1,256 +1,203 @@
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Liberix Monitor</title>
-    <link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Open-End Loan Monitor — Liberix</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <!-- Sidebar -->
-    <nav class="sidebar" id="sidebar">
-        <div class="sidebar-brand">
-            <span class="brand-icon">L</span>
-            <span class="brand-name">Liberix</span>
+
+<!-- LANDING PAGE -->
+<div class="landing-overlay" id="landingOverlay">
+  <div class="landing-container">
+    <div class="landing-logo"><div class="logo-letter">L</div></div>
+    <div class="landing-title"><span>Liber</span>ix</div>
+    <div class="landing-subtitle">Open-End Loan Monitor · Crypto-backed lending management</div>
+    <div class="role-cards">
+      <div class="role-card user-role" onclick="enterUserMode()">
+        <div class="role-icon">&#128100;</div>
+        <div class="role-name">User</div>
+        <div class="role-desc">Look up your loan by ID and view details in read-only mode</div>
+      </div>
+      <div class="role-card admin-role" onclick="enterAdminMode()">
+        <div class="role-icon">&#128737;&#65039;</div>
+        <div class="role-name">Admin</div>
+        <div class="role-desc">Full access to create, edit, and manage all loans</div>
+      </div>
+    </div>
+    <div class="landing-footer">v2.0 · Prototype · Persistent Storage</div>
+  </div>
+</div>
+
+<!-- USER LOAN LOOKUP -->
+<div class="user-overlay" id="userOverlay">
+  <div class="user-container">
+    <div class="user-topbar">
+      <div class="user-topbar-brand">
+        <div class="logo-letter sm">L</div>
+        <div class="user-topbar-label"><span>Liber</span>ix</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div id="userPriceStatus" class="price-status-text"></div>
+        <div class="user-topbar-badge">User View</div>
+        <button class="user-back-btn" onclick="backToLanding()">&larr; Back</button>
+      </div>
+    </div>
+    <div class="user-lookup-box" id="userLookupBox">
+      <div class="user-lookup-title">Look Up Your Loan</div>
+      <div class="user-lookup-sub">Enter your Loan ID to view loan details</div>
+      <div class="user-lookup-input-wrap">
+        <input class="user-lookup-input" id="userLoanInput" type="text" placeholder="Enter Loan ID (e.g. OEL-2026-001)" onkeydown="if(event.key==='Enter')userLookupLoan()">
+        <button class="user-lookup-btn" onclick="userLookupLoan()">Search</button>
+      </div>
+      <div class="user-lookup-error" id="userLookupError"></div>
+    </div>
+    <div class="user-loan-result" id="userLoanResult">
+      <div style="margin-bottom:16px;"><button class="user-back-btn" onclick="clearLoanResult()">&larr; Search Another Loan</button></div>
+      <div class="user-loan-card" id="userLoanCard"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN LOCK SCREEN -->
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-box">
+    <div class="landing-logo sm"><div class="logo-letter">L</div></div>
+    <div class="lock-title">Admin Access</div>
+    <div class="lock-subtitle">Enter passcode to access loan management</div>
+    <div class="lock-input-wrap">
+      <input class="lock-input" id="lockInput" type="password" placeholder="&#8226;&#8226;&#8226;&#8226;&#8226;&#8226;" onkeydown="if(event.key==='Enter')attemptUnlock()">
+      <button class="lock-btn" onclick="attemptUnlock()">Unlock</button>
+    </div>
+    <div class="lock-error-msg" id="lockError"></div>
+    <div class="lock-back-link" onclick="backToLanding()">&larr; Back to role selection</div>
+  </div>
+</div>
+
+<!-- ADMIN APP -->
+<div class="app" id="appRoot">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-letter sm">L</div>
+      <div class="logo-label"><span>Liber</span>ix</div>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-title">Admin Menu</div>
+      <div class="sidebar-link active" data-page="loans" onclick="showPage('loans')"><span class="ico">&#128203;</span> Open-End Loans</div>
+      <div class="sidebar-link" data-page="liquidity" onclick="showPage('liquidity')"><span class="ico">&#128200;</span> Liquidity Monitor</div>
+      <div class="sidebar-link" data-page="closed" onclick="showPage('closed')"><span class="ico">&#128193;</span> Closed Loans</div>
+    </div>
+    <div class="sidebar-price-panel">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+        <div class="price-panel-title" style="margin-bottom:0">Asset Prices (THB)</div>
+        <button onclick="fetchPrices()" class="price-refresh-btn" title="Refresh prices">&#8635;</button>
+      </div>
+      <div id="priceStatus" class="price-status-text"></div>
+      <div id="pricePanel"></div>
+    </div>
+  </aside>
+
+  <div class="main">
+    <!-- PAGE: LOANS -->
+    <div id="pageLoan">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Open-End Loan Monitor</div>
+          <div class="page-subtitle">Manage crypto-backed open-end loans &middot; Prices in Thai Baht</div>
         </div>
-        <div class="sidebar-label">MENU</div>
-        <a class="nav-item active" data-page="loans" onclick="showPage('loans')">
-            <span class="nav-icon">&#128196;</span> Open-End Loans
-        </a>
-        <a class="nav-item" data-page="dashboard" onclick="showPage('dashboard')">
-            <span class="nav-icon">&#128202;</span> Dashboard
-        </a>
-        <a class="nav-item" data-page="closed" onclick="showPage('closed')">
-            <span class="nav-icon">&#128451;</span> Closed Loans
-        </a>
-        <a class="nav-item" data-page="liquidity" onclick="showPage('liquidity')">
-            <span class="nav-icon">&#128200;</span> Liquidity Monitor
-        </a>
-        <a class="nav-item" data-page="viewer" onclick="showPage('viewer')">
-            <span class="nav-icon">&#128269;</span> Loan Viewer
-        </a>
-
-        <!-- Live Prices -->
-        <div class="sidebar-label" style="margin-top:24px">LIVE ASSET PRICES (THB)</div>
-        <div id="livePrices" class="live-prices"></div>
-    </nav>
-
-    <!-- Main Content -->
-    <div class="main-content">
-
-        <!-- ═══ Open-End Loans Page ═══ -->
-        <div class="page active" id="page-loans">
-            <div class="page-header">
-                <div>
-                    <h1>Open-End Loan Monitor</h1>
-                    <p class="subtitle">Manage crypto-backed open-end loans &middot; Prices in Thai Baht</p>
-                </div>
-                <button class="btn-primary" onclick="openNewLoanModal()">+ New Loan</button>
-            </div>
-
-            <!-- Summary Cards -->
-            <div class="summary-cards" id="loanSummaryCards">
-                <div class="summary-card card-blue">
-                    <span class="sc-label">TOTAL LOANS</span>
-                    <span class="sc-value" id="scTotalLoans">0</span>
-                    <span class="sc-sub" id="scActiveCount">0 active</span>
-                </div>
-                <div class="summary-card card-green">
-                    <span class="sc-label">TOTAL LOAN VALUE</span>
-                    <span class="sc-value" id="scTotalLoanValue">&#3647;0</span>
-                    <span class="sc-sub">outstanding principal</span>
-                </div>
-                <div class="summary-card card-orange">
-                    <span class="sc-label">TOTAL REPAYMENT</span>
-                    <span class="sc-value" id="scTotalRepayment">&#3647;0</span>
-                    <span class="sc-sub">incl. accrued interest</span>
-                </div>
-                <div class="summary-card card-purple">
-                    <span class="sc-label">TOTAL COLLATERAL VALUE</span>
-                    <span class="sc-value" id="scTotalCollateral">&#3647;0</span>
-                    <span class="sc-sub">at current prices</span>
-                </div>
-            </div>
-
-            <!-- Loan Cards -->
-            <div class="loan-cards" id="loanCards">
-                <p class="loading">Loading loans...</p>
-            </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button class="logout-btn" onclick="adminLogout()">&#128682; Logout</button>
+          <button class="lock-toggle" onclick="lockApp()">&#128274; Lock</button>
+          <button class="btn btn-primary" onclick="openModal()">&#65291; New Loan</button>
         </div>
-
-        <!-- ═══ Dashboard Page ═══ -->
-        <div class="page" id="page-dashboard">
-            <div class="page-header">
-                <h1>Dashboard</h1>
-            </div>
-            <div class="summary-cards" id="dashSummaryCards"></div>
-            <div id="dashContent">
-                <p class="subtitle">Overview of all loans and liquidity data</p>
-            </div>
-        </div>
-
-        <!-- ═══ Closed Loans Page ═══ -->
-        <div class="page" id="page-closed">
-            <div class="page-header">
-                <h1>Closed Loans</h1>
-            </div>
-            <div class="loan-cards" id="closedLoanCards">
-                <p class="loading">No closed loans</p>
-            </div>
-        </div>
-
-        <!-- ═══ Liquidity Monitor Page ═══ -->
-        <div class="page" id="page-liquidity">
-            <div class="page-header">
-                <div>
-                    <h1>Liquidity Monitor</h1>
-                    <p class="subtitle">Bitkub order book liquidity analysis</p>
-                </div>
-                <div class="controls">
-                    <label>Depth: <input type="number" id="depthInput" value="90" min="1" max="100" step="1">%</label>
-                    <label>Threshold: <input type="number" id="thresholdInput" value="-3.5" min="-50" max="0" step="0.1">%</label>
-                    <button class="btn-primary" id="refreshBtn" onclick="fetchSummary()">Refresh</button>
-                    <label class="auto-refresh"><input type="checkbox" id="autoRefresh" checked> Auto (30s)</label>
-                    <span id="lastUpdate" class="timestamp"></span>
-                </div>
-            </div>
-
-            <!-- Summary Table -->
-            <div id="summarySection">
-                <table id="summaryTable">
-                    <thead>
-                        <tr>
-                            <th>Coin</th>
-                            <th>Best Bid (THB)</th>
-                            <th>Vol Used (input)</th>
-                            <th>Liquidity Depth (THB)</th>
-                            <th>Slippage</th>
-                            <th>Safe Vol (Threshold)</th>
-                            <th>Safe THB</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody id="summaryBody">
-                        <tr><td colspan="8" class="loading">Loading...</td></tr>
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- Detail View (hidden by default) -->
-            <div id="detailSection" class="hidden">
-                <div class="detail-header">
-                    <h2 id="detailTitle">-</h2>
-                    <button onclick="closeDetail()">Close</button>
-                </div>
-                <div class="detail-vol-input">
-                    <label>Custom Vol Used: <input type="number" id="detailVolInput" placeholder="" min="0" step="any"></label>
-                    <button onclick="recalcDetail()">Recalculate</button>
-                    <button class="btn-reset" onclick="resetDetailVol()">Reset</button>
-                </div>
-                <div class="detail-metrics">
-                    <div class="metric-card"><span class="label">Best Bid</span><span class="value" id="dBestBid">-</span></div>
-                    <div class="metric-card"><span class="label">Vol Used</span><span class="value" id="dVolUsed">-</span></div>
-                    <div class="metric-card"><span class="label">Vol Received (THB)</span><span class="value" id="dVolReceived">-</span></div>
-                    <div class="metric-card"><span class="label">Diff</span><span class="value" id="dDiff">-</span></div>
-                    <div class="metric-card"><span class="label">Slippage</span><span class="value" id="dSlippage">-</span></div>
-                    <div class="metric-card highlight-card"><span class="label">Safe Vol (<span id="dThresholdLabel">-3.5%</span>)</span><span class="value" id="dSafeVol">-</span></div>
-                    <div class="metric-card highlight-card"><span class="label">Safe THB</span><span class="value" id="dSafeThb">-</span></div>
-                </div>
-                <h3>Order Book - Bid Side (at <span id="depthLabel">90</span>% depth)</h3>
-                <div class="table-scroll">
-                    <table id="detailTable">
-                        <thead><tr><th>#</th><th>Amount</th><th>Bid Price</th><th>Bid Size (THB)</th><th>Accru Amount</th><th>Amount Match</th><th>Sales Matched (THB)</th><th>Accru Matched (THB)</th><th>Slippage</th></tr></thead>
-                        <tbody id="detailBody"></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- ═══ Loan Viewer Page ═══ -->
-        <div class="page" id="page-viewer">
-            <div class="viewer-container">
-                <div class="viewer-header">
-                    <span class="brand-icon">L</span>
-                    <div>
-                        <h1>Liberix</h1>
-                        <p class="subtitle">Open-End Loan Viewer &middot; Read-Only</p>
-                    </div>
-                </div>
-                <div class="viewer-search">
-                    <input type="text" id="viewerLoanId" placeholder="OEL-2026-002">
-                    <button class="btn-primary" onclick="lookupLoan()">LOOK UP</button>
-                </div>
-                <div id="viewerResult"></div>
-            </div>
-        </div>
+      </div>
+      <div class="summary-strip" id="summaryStrip"></div>
+      <div class="loans-grid" id="loansGrid"></div>
+      <div class="empty-state" id="emptyState" style="display:none;">
+        <div class="ico">&#128237;</div>
+        <p>No loans created yet. Add your first loan to get started.</p>
+        <button class="btn btn-primary" onclick="openModal()">&#65291; Create First Loan</button>
+      </div>
     </div>
 
-    <!-- New Loan Modal -->
-    <div class="modal-overlay hidden" id="newLoanModal" onclick="if(event.target===this)closeNewLoanModal()">
-        <div class="modal">
-            <div class="modal-header">
-                <h2>New Open-End Loan</h2>
-                <button class="modal-close" onclick="closeNewLoanModal()">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>LOAN ID</label>
-                        <input type="text" id="fLoanId" placeholder="e.g. OEL-2026-001">
-                    </div>
-                    <div class="form-group">
-                        <label>ASSET TYPE</label>
-                        <select id="fAssetType"><option value="">Select asset...</option></select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>COLLATERAL AMOUNT</label>
-                        <input type="number" id="fCollateralAmount" value="0" step="any" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label>INITIAL COLLATERAL VALUE (THB)</label>
-                        <input type="number" id="fInitCollateralValue" value="0" step="any" min="0">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>LOAN AMOUNT (THB)</label>
-                        <input type="number" id="fLoanAmount" value="0" step="any" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label>LTV RATIO</label>
-                        <select id="fLtvRatio"><option value="">Select LTV...</option></select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>DAILY INTEREST RATE (%)</label>
-                        <input type="number" id="fDailyRate" placeholder="e.g. 0.05" step="any" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label>START DATE</label>
-                        <input type="date" id="fStartDate">
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>STATUS</label>
-                        <select id="fStatus">
-                            <option value="active">Active</option>
-                            <option value="pending_transfer">Pending Transfer</option>
-                            <option value="pending_deposit">Pending Deposit</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn-secondary" onclick="closeNewLoanModal()">Cancel</button>
-                <button class="btn-primary" onclick="submitNewLoan()">Create Loan</button>
-            </div>
+    <!-- PAGE: LIQUIDITY -->
+    <div id="pageLiquidity" style="display:none;">
+      <div class="page-header">
+        <div>
+          <div class="page-title">Liquidity Monitor</div>
+          <div class="page-subtitle">Bitkub order book liquidity analysis</div>
         </div>
+        <div class="liq-controls">
+          <label>Depth: <input type="number" id="depthInput" value="90" min="1" max="100" step="1" class="form-input sm">%</label>
+          <label>Threshold: <input type="number" id="thresholdInput" value="-3.5" min="-50" max="0" step="0.1" class="form-input sm">%</label>
+          <button class="btn btn-primary btn-sm" id="refreshBtn" onclick="fetchLiqSummary()">Refresh</button>
+          <span id="lastUpdate" class="price-status-text"></span>
+        </div>
+      </div>
+      <div id="liqSummarySection">
+        <table class="liq-table"><thead><tr>
+          <th style="text-align:left">Coin</th><th>Best Bid</th><th>Vol Used (input)</th><th>Liquidity (THB)</th><th>Slippage</th><th>Safe Vol</th><th>Safe THB</th><th></th>
+        </tr></thead><tbody id="liqBody"><tr><td colspan="8" class="loading">Loading...</td></tr></tbody></table>
+      </div>
+      <div id="liqDetailSection" style="display:none;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <div class="page-title" id="liqDetailTitle">-</div>
+          <button class="btn btn-ghost btn-sm" onclick="closeLiqDetail()">Close</button>
+        </div>
+        <div class="liq-vol-bar">
+          <label>Custom Vol: <input type="number" id="liqDetailVol" class="form-input sm" placeholder="auto" step="any" min="0"></label>
+          <button class="btn btn-primary btn-sm" onclick="recalcLiqDetail()">Recalculate</button>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('liqDetailVol').value='';recalcLiqDetail()">Reset</button>
+        </div>
+        <div class="summary-strip" id="liqDetailMetrics"></div>
+        <div class="table-scroll"><table class="liq-table"><thead><tr>
+          <th>#</th><th>Amount</th><th>Bid Price</th><th>Bid Size</th><th>Accru Amt</th><th>Amt Match</th><th>Sales Matched</th><th>Accru Matched</th><th>Slippage</th>
+        </tr></thead><tbody id="liqDetailBody"></tbody></table></div>
+      </div>
     </div>
 
-    <script src="/static/app.js"></script>
+    <!-- PAGE: CLOSED -->
+    <div id="pageClosed" style="display:none;">
+      <div class="page-header">
+        <div class="page-title">Closed Loans</div>
+      </div>
+      <div class="loans-grid" id="closedGrid"></div>
+      <div class="empty-state" id="closedEmpty"><div class="ico">&#128193;</div><p>No closed loans</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- NEW LOAN MODAL -->
+<div class="modal-overlay" id="modalOverlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Open-End Loan</div>
+      <button class="modal-close" onclick="closeModal()">&#10005;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label class="form-label">Loan ID</label><input class="form-input" id="fLoanId" placeholder="e.g. OEL-2026-001"></div>
+        <div class="form-group"><label class="form-label">Asset Type</label><select class="form-select" id="fAssetType"><option value="">Select asset...</option></select></div>
+        <div class="form-group"><label class="form-label">Collateral Amount</label><input class="form-input" id="fCollateralAmt" type="number" step="any" placeholder="0.00000"></div>
+        <div class="form-group"><label class="form-label">Init. Collateral Value (THB)</label><input class="form-input" id="fInitCollateralVal" type="number" step="any" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">Loan Amount (THB)</label><input class="form-input" id="fLoanAmt" type="number" step="any" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">LTV Ratio</label><select class="form-select" id="fLtv"><option value="">Select LTV...</option></select></div>
+        <div class="form-group"><label class="form-label">Daily Interest Rate (%)</label><input class="form-input" id="fDailyRate" type="number" step="any" placeholder="e.g. 0.05"></div>
+        <div class="form-group"><label class="form-label">Start Date</label><input class="form-input" id="fStartDate" type="date"></div>
+        <div class="form-group"><label class="form-label">Status</label>
+          <select class="form-select" id="fStatus"><option value="active">Active</option><option value="pending_transfer">Pending Transfer</option><option value="pending_deposit">Pending Deposit</option></select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createLoan()">Create Loan</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js"></script>
 </body>
 </html>
