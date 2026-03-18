@@ -123,7 +123,8 @@ function renderLoanCards(loans,gridId,emptyId){
         <div class="loan-field"><div class="loan-field-label">LTV at Origination</div><div class="loan-field-value">${l.ltv_ratio}%</div></div>
         <div class="loan-field"><div class="loan-field-label">Daily Interest Rate</div><div class="loan-field-value">${l.daily_interest_rate}%</div></div>
         <div class="loan-field"><div class="loan-field-label">Start Date</div><div class="loan-field-value">${l.start_date}</div></div>
-        <div class="loan-field"><div class="loan-field-label">Duration</div><div class="loan-field-value">${l.duration_days} days <span style="font-size:10px;color:var(--accent)">(as of today)</span></div></div>
+        <div class="loan-field"><div class="loan-field-label">End Date</div><div class="loan-field-value"><div style="display:flex;align-items:center;gap:6px"><input type="date" class="end-date-input" value="${l.end_date||''}" onchange="updateEndDate('${l.id}',this.value)">${!l.end_date?'<span style="font-size:10px;color:var(--text-3)">open</span>':''}</div></div></div>
+        <div class="loan-field"><div class="loan-field-label">Duration</div><div class="loan-field-value">${l.duration_days} days ${!l.end_date?'<span style="font-size:10px;color:var(--accent)">(as of today)</span>':''}</div></div>
         <div class="loan-field"><div class="loan-field-label">Accru. Interest</div><div class="loan-field-value" style="color:var(--orange)">${fmtThb(l.accrued_interest)}</div></div>
         <div class="loan-field"><div class="loan-field-label">Total Repayment</div><div class="loan-field-value large" style="color:var(--orange)">${fmtThb(l.total_repayment)}</div></div>
         <div class="loan-field"><div class="loan-field-label">Current Price</div><div class="loan-field-value">${fmtThb(l.current_price)}</div></div>
@@ -160,6 +161,10 @@ async function createLoan(){
   if(!d.id||!d.asset_type){alert('Please fill Loan ID and Asset Type');return}
   await fetch('/api/loans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
   closeModal();loadActiveLoans();
+}
+async function updateEndDate(id,value){
+  await fetch('/api/loans/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({end_date:value||null})});
+  loadActiveLoans();
 }
 async function deleteLoan(id){
   if(!confirm('Delete loan '+id+'?'))return;
