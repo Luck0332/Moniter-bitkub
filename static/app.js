@@ -148,8 +148,24 @@ async function openModal(){
   document.getElementById('fDailyRate').value='0.041666667';
   document.getElementById('fEndDate').value='';
   document.getElementById('modalOverlay').classList.add('show');
+  // Wire up auto-calc
+  document.getElementById('fAssetType').onchange=autoCalcModal;
+  document.getElementById('fCollateralAmt').oninput=autoCalcModal;
+  document.getElementById('fLtv').onchange=autoCalcModal;
+  autoCalcModal();
 }
 function closeModal(){document.getElementById('modalOverlay').classList.remove('show')}
+function autoCalcModal(){
+  const asset=document.getElementById('fAssetType').value;
+  const amt=parseFloat(document.getElementById('fCollateralAmt').value)||0;
+  const ltv=parseInt(document.getElementById('fLtv').value)||0;
+  const price=prices[asset]||0;
+  if(asset&&amt>0&&price>0){
+    const collVal=amt*price;
+    document.getElementById('fInitCollateralVal').value=collVal.toFixed(2);
+    if(ltv>0) document.getElementById('fLoanAmt').value=(collVal*ltv/100).toFixed(2);
+  }
+}
 async function createLoan(){
   const d={id:document.getElementById('fLoanId').value.trim(),asset_type:document.getElementById('fAssetType').value,
     collateral_amount:parseFloat(document.getElementById('fCollateralAmt').value)||0,
