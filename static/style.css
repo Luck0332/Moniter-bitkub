@@ -271,7 +271,7 @@ tbody tr:hover { background: #161b22; }
 
 .table-scroll { overflow-x: auto; max-height: 500px; overflow-y: auto; border: 1px solid #21262d; border-radius: 6px; }
 h3 { color: #79c0ff; margin: 20px 0 12px; font-size: 1rem; }
-.hidden { display: none; }
+.hidden { display: none !important; }
 
 .row-matched { background: #1a2332; } .row-partial { background: #2a1f1a; } .row-unmatched { opacity: 0.5; }
 .row-threshold-breach { background: #3d1f20 !important; }
