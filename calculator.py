@@ -1,27 +1,15 @@
 """Liquidity calculation engine matching the spreadsheet logic."""
 
-from config import DEFAULT_DEPTH_PERCENT, DEFAULT_THRESHOLD, SCENARIO_SLIPPAGE
+from config import DEFAULT_DEPTH_PERCENT, DEFAULT_THRESHOLD
 
 
 def calculate_liquidity(bids: list[dict], depth_percent: float = DEFAULT_DEPTH_PERCENT,
                         custom_vol: float | None = None,
                         threshold: float = DEFAULT_THRESHOLD) -> dict:
-    """Calculate liquidity metrics from bid-side order book.
-
-    Args:
-        bids: List of {'price': float, 'amount': float, 'volume_thb': float}
-              sorted by price descending (best bid first).
-        depth_percent: Fraction of total order book depth to use (default 0.90).
-        custom_vol: Optional custom volume to use instead of depth_percent.
-        threshold: Slippage threshold for safety line (default -3.5%).
-
-    Returns:
-        Dictionary with all liquidity metrics.
-    """
     if not bids:
         return _empty_result(threshold)
 
-    # Build order book table with accumulated values
+    # Build order book table
     levels = []
     accru_amount = 0.0
     accru_thb = 0.0
@@ -54,22 +42,19 @@ def calculate_liquidity(bids: list[dict], depth_percent: float = DEFAULT_DEPTH_P
     matched_levels = _fill_orders(levels, vol_used)
     vol_received = sum(ml["sales_matched"] for ml in matched_levels)
 
-    # Calculate accumulated matched THB
+    # Accumulated matched THB
     accru_matched = 0.0
     for ml in matched_levels:
         accru_matched += ml["sales_matched"]
         ml["accru_matched"] = accru_matched
 
-    # Slippage calculation
+    # Slippage
     expected_thb = vol_used * best_bid
     diff = vol_received - expected_thb
     slippage = diff / expected_thb if expected_thb > 0 else 0.0
 
-    # Safety line: find where slippage crosses threshold
+    # Safety line
     safety = _calculate_safety_line(levels, best_bid, threshold)
-
-    # Scenario -5% calculation
-    scenario = _calculate_scenario(levels, best_bid, worst_bid, total_amount)
 
     return {
         "best_bid": best_bid,
@@ -85,12 +70,10 @@ def calculate_liquidity(bids: list[dict], depth_percent: float = DEFAULT_DEPTH_P
         "threshold_breached": slippage < threshold,
         "safety": safety,
         "levels": matched_levels,
-        "scenario": scenario,
     }
 
 
 def _fill_orders(levels: list[dict], vol_target: float) -> list[dict]:
-    """Walk through order book levels filling vol_target amount."""
     matched = []
     remaining = vol_target
     for level in levels:
@@ -106,98 +89,49 @@ def _fill_orders(levels: list[dict], vol_target: float) -> list[dict]:
 
 def _calculate_safety_line(levels: list[dict], best_bid: float,
                            threshold: float) -> dict:
-    """Find the point where cumulative slippage crosses the threshold.
-
-    Returns the max safe volume and THB receivable within threshold.
-    """
     if best_bid <= 0 or not levels:
         return {"safe_vol": 0, "safe_thb": 0, "crossed_at_level": -1,
-                "within_threshold": False}
+                "is_safe": False}
 
     accru_vol = 0.0
     accru_thb = 0.0
-    prev_vol = 0.0
-    prev_thb = 0.0
-    crossed_at = -1
 
     for i, level in enumerate(levels):
         price = level["price"]
         amount = level["amount"]
 
-        # Check slippage at the END of this full level
         next_vol = accru_vol + amount
         next_thb = accru_thb + amount * price
         expected = next_vol * best_bid
         slip = (next_thb - expected) / expected if expected > 0 else 0
 
         if slip < threshold:
-            # Threshold crossed within this level - interpolate
-            # We need to find exact amount within this level where threshold is hit
-            # slip(x) = (accru_thb + x*price - (accru_vol + x)*best_bid) / ((accru_vol + x)*best_bid) = threshold
-            # accru_thb + x*price = (1 + threshold) * (accru_vol + x) * best_bid
-            # accru_thb + x*price = (1+t)*accru_vol*best_bid + (1+t)*x*best_bid
-            # x*price - (1+t)*x*best_bid = (1+t)*accru_vol*best_bid - accru_thb
-            # x * (price - (1+t)*best_bid) = (1+t)*accru_vol*best_bid - accru_thb
+            # Interpolate exact crossing point
             t = threshold
             numerator = (1 + t) * accru_vol * best_bid - accru_thb
             denominator = price - (1 + t) * best_bid
             if denominator != 0:
-                x = numerator / denominator
-                x = max(0, min(x, amount))
+                x = max(0, min(numerator / denominator, amount))
             else:
                 x = 0
-            crossed_at = i
             safe_vol = accru_vol + x
             safe_thb = accru_thb + x * price
             return {
                 "safe_vol": safe_vol,
                 "safe_thb": safe_thb,
-                "crossed_at_level": crossed_at,
-                "within_threshold": True,
+                "crossed_at_level": i,
+                "is_safe": False,
             }
 
-        prev_vol = accru_vol
-        prev_thb = accru_thb
         accru_vol = next_vol
         accru_thb = next_thb
 
-    # Never crossed threshold - entire book is within safety
+    # Never crossed threshold - entire book is safe
     return {
         "safe_vol": accru_vol,
         "safe_thb": accru_thb,
         "crossed_at_level": -1,
-        "within_threshold": True,
-    }
-
-
-def _calculate_scenario(levels: list[dict], best_bid: float,
-                        worst_bid: float, total_amount: float) -> dict:
-    """Calculate the -5% slippage scenario test."""
-    expected_size = total_amount * best_bid
-    min_size = total_amount * worst_bid
-    slippage_target = SCENARIO_SLIPPAGE
-    test_value = expected_size * (1 + slippage_target)
-
-    vol_needed = test_value / best_bid if best_bid > 0 else 0
-
-    matched = _fill_orders(levels, vol_needed)
-    scenario_received = sum(m["sales_matched"] for m in matched)
-    remaining = vol_needed - sum(m["amount_match"] for m in matched)
-
-    has_enough = remaining <= 1e-10
-    scenario_expected = vol_needed * best_bid
-    scenario_slippage = ((scenario_received / scenario_expected) - 1) if scenario_expected > 0 else 0
-
-    return {
-        "expected_size": expected_size,
-        "min_size": min_size,
-        "test_value": test_value,
-        "vol_needed": vol_needed,
-        "vol_received": scenario_received,
-        "has_enough_liquidity": has_enough,
-        "slippage": scenario_slippage,
-        "slippage_pct": f"{scenario_slippage * 100:.3f}%",
-        "levels": matched,
+        "is_safe": True,
     }
 
 
@@ -207,12 +141,6 @@ def _empty_result(threshold: float = DEFAULT_THRESHOLD) -> dict:
         "vol_used": 0, "vol_received": 0, "diff": 0, "slippage": 0,
         "slippage_pct": "N/A", "threshold": threshold,
         "threshold_breached": False,
-        "safety": {"safe_vol": 0, "safe_thb": 0, "crossed_at_level": -1, "within_threshold": False},
+        "safety": {"safe_vol": 0, "safe_thb": 0, "crossed_at_level": -1, "is_safe": False},
         "levels": [],
-        "scenario": {
-            "expected_size": 0, "min_size": 0, "test_value": 0,
-            "vol_needed": 0, "vol_received": 0,
-            "has_enough_liquidity": False, "slippage": 0,
-            "slippage_pct": "N/A", "levels": [],
-        },
     }

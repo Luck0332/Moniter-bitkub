@@ -12,7 +12,13 @@ COINS = [
     "THB_DOGE", "THB_WLD",
 ]
 
+# Supported asset types for loans
+ASSET_TYPES = ["BTC", "ETH", "SOL", "BNB", "ADA", "DOT", "POL", "TRX",
+               "TON", "XRP", "SUI", "AVAX", "DOGE", "WLD", "USDT"]
+
 # Liquidity calculation defaults
 DEFAULT_DEPTH_PERCENT = 0.90  # 90% of displayed order book
 DEFAULT_THRESHOLD = -0.035    # -3.5% slippage threshold (safety line)
-SCENARIO_SLIPPAGE = -0.05     # -5% for scenario test
+
+# Loan data file
+LOANS_FILE = "data/loans.json"

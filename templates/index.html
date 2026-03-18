@@ -3,174 +3,253 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bitkub Liquidity Monitor</title>
+    <title>Liberix Monitor</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <header>
-        <h1>Bitkub Liquidity Monitor</h1>
-        <div class="controls">
-            <label>
-                Depth:
-                <input type="number" id="depthInput" value="90" min="1" max="100" step="1">
-                <span>%</span>
-            </label>
-            <label>
-                Threshold:
-                <input type="number" id="thresholdInput" value="-3.5" min="-50" max="0" step="0.1">
-                <span>%</span>
-            </label>
-            <button id="refreshBtn" onclick="fetchSummary()">Refresh</button>
-            <span id="lastUpdate" class="timestamp"></span>
-            <label class="auto-refresh">
-                <input type="checkbox" id="autoRefresh" checked>
-                Auto (30s)
-            </label>
+    <!-- Sidebar -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+            <span class="brand-icon">L</span>
+            <span class="brand-name">Liberix</span>
         </div>
-    </header>
+        <div class="sidebar-label">MENU</div>
+        <a class="nav-item active" data-page="loans" onclick="showPage('loans')">
+            <span class="nav-icon">&#128196;</span> Open-End Loans
+        </a>
+        <a class="nav-item" data-page="dashboard" onclick="showPage('dashboard')">
+            <span class="nav-icon">&#128202;</span> Dashboard
+        </a>
+        <a class="nav-item" data-page="closed" onclick="showPage('closed')">
+            <span class="nav-icon">&#128451;</span> Closed Loans
+        </a>
+        <a class="nav-item" data-page="liquidity" onclick="showPage('liquidity')">
+            <span class="nav-icon">&#128200;</span> Liquidity Monitor
+        </a>
+        <a class="nav-item" data-page="viewer" onclick="showPage('viewer')">
+            <span class="nav-icon">&#128269;</span> Loan Viewer
+        </a>
 
-    <main>
-        <!-- Summary Table -->
-        <section id="summarySection">
-            <h2>Summary - Liquidity Overview</h2>
-            <table id="summaryTable">
-                <thead>
-                    <tr>
-                        <th>Coin</th>
-                        <th>Best Bid (THB)</th>
-                        <th>Vol Used (input)</th>
-                        <th>Liquidity Depth (THB)</th>
-                        <th>Slippage</th>
-                        <th>Safe Vol (Threshold)</th>
-                        <th>Safe THB</th>
-                        <th>Scenario -5%</th>
-                        <th>Enough?</th>
-                        <th></th>
-                    </tr>
-                </thead>
-                <tbody id="summaryBody">
-                    <tr><td colspan="10" class="loading">Loading...</td></tr>
-                </tbody>
-            </table>
-        </section>
+        <!-- Live Prices -->
+        <div class="sidebar-label" style="margin-top:24px">LIVE ASSET PRICES (THB)</div>
+        <div id="livePrices" class="live-prices"></div>
+    </nav>
 
-        <!-- Detail Section -->
-        <section id="detailSection" class="hidden">
-            <div class="detail-header">
-                <h2 id="detailTitle">-</h2>
-                <button onclick="closeDetail()">Close</button>
+    <!-- Main Content -->
+    <div class="main-content">
+
+        <!-- ═══ Open-End Loans Page ═══ -->
+        <div class="page active" id="page-loans">
+            <div class="page-header">
+                <div>
+                    <h1>Open-End Loan Monitor</h1>
+                    <p class="subtitle">Manage crypto-backed open-end loans &middot; Prices in Thai Baht</p>
+                </div>
+                <button class="btn-primary" onclick="openNewLoanModal()">+ New Loan</button>
             </div>
 
-            <!-- Custom Vol input for detail -->
-            <div class="detail-vol-input">
-                <label>
-                    Custom Vol Used:
-                    <input type="number" id="detailVolInput" placeholder="" min="0" step="any">
-                </label>
-                <button onclick="recalcDetail()">Recalculate</button>
-                <button class="btn-reset" onclick="resetDetailVol()">Reset to auto</button>
-            </div>
-
-            <div class="detail-metrics">
-                <div class="metric-card">
-                    <span class="label">Best Bid</span>
-                    <span class="value" id="dBestBid">-</span>
+            <!-- Summary Cards -->
+            <div class="summary-cards" id="loanSummaryCards">
+                <div class="summary-card card-blue">
+                    <span class="sc-label">TOTAL LOANS</span>
+                    <span class="sc-value" id="scTotalLoans">0</span>
+                    <span class="sc-sub" id="scActiveCount">0 active</span>
                 </div>
-                <div class="metric-card">
-                    <span class="label">Vol Used</span>
-                    <span class="value" id="dVolUsed">-</span>
+                <div class="summary-card card-green">
+                    <span class="sc-label">TOTAL LOAN VALUE</span>
+                    <span class="sc-value" id="scTotalLoanValue">&#3647;0</span>
+                    <span class="sc-sub">outstanding principal</span>
                 </div>
-                <div class="metric-card">
-                    <span class="label">Vol Received (THB)</span>
-                    <span class="value" id="dVolReceived">-</span>
+                <div class="summary-card card-orange">
+                    <span class="sc-label">TOTAL REPAYMENT</span>
+                    <span class="sc-value" id="scTotalRepayment">&#3647;0</span>
+                    <span class="sc-sub">incl. accrued interest</span>
                 </div>
-                <div class="metric-card">
-                    <span class="label">Diff</span>
-                    <span class="value" id="dDiff">-</span>
-                </div>
-                <div class="metric-card">
-                    <span class="label">Slippage</span>
-                    <span class="value" id="dSlippage">-</span>
-                </div>
-                <div class="metric-card highlight-card">
-                    <span class="label">Safe Vol (Threshold <span id="dThresholdLabel">-3.5%</span>)</span>
-                    <span class="value" id="dSafeVol">-</span>
-                </div>
-                <div class="metric-card highlight-card">
-                    <span class="label">Safe THB</span>
-                    <span class="value" id="dSafeThb">-</span>
+                <div class="summary-card card-purple">
+                    <span class="sc-label">TOTAL COLLATERAL VALUE</span>
+                    <span class="sc-value" id="scTotalCollateral">&#3647;0</span>
+                    <span class="sc-sub">at current prices</span>
                 </div>
             </div>
 
-            <!-- Order Book at Depth -->
-            <h3>Order Book - Bid Side (at <span id="depthLabel">90</span>% depth)</h3>
-            <div class="table-scroll">
-                <table id="detailTable">
+            <!-- Loan Cards -->
+            <div class="loan-cards" id="loanCards">
+                <p class="loading">Loading loans...</p>
+            </div>
+        </div>
+
+        <!-- ═══ Dashboard Page ═══ -->
+        <div class="page" id="page-dashboard">
+            <div class="page-header">
+                <h1>Dashboard</h1>
+            </div>
+            <div class="summary-cards" id="dashSummaryCards"></div>
+            <div id="dashContent">
+                <p class="subtitle">Overview of all loans and liquidity data</p>
+            </div>
+        </div>
+
+        <!-- ═══ Closed Loans Page ═══ -->
+        <div class="page" id="page-closed">
+            <div class="page-header">
+                <h1>Closed Loans</h1>
+            </div>
+            <div class="loan-cards" id="closedLoanCards">
+                <p class="loading">No closed loans</p>
+            </div>
+        </div>
+
+        <!-- ═══ Liquidity Monitor Page ═══ -->
+        <div class="page" id="page-liquidity">
+            <div class="page-header">
+                <div>
+                    <h1>Liquidity Monitor</h1>
+                    <p class="subtitle">Bitkub order book liquidity analysis</p>
+                </div>
+                <div class="controls">
+                    <label>Depth: <input type="number" id="depthInput" value="90" min="1" max="100" step="1">%</label>
+                    <label>Threshold: <input type="number" id="thresholdInput" value="-3.5" min="-50" max="0" step="0.1">%</label>
+                    <button class="btn-primary" id="refreshBtn" onclick="fetchSummary()">Refresh</button>
+                    <label class="auto-refresh"><input type="checkbox" id="autoRefresh" checked> Auto (30s)</label>
+                    <span id="lastUpdate" class="timestamp"></span>
+                </div>
+            </div>
+
+            <!-- Summary Table -->
+            <div id="summarySection">
+                <table id="summaryTable">
                     <thead>
                         <tr>
-                            <th>#</th>
-                            <th>Amount</th>
-                            <th>Bid Price</th>
-                            <th>Bid Size (THB)</th>
-                            <th>Accru Amount</th>
-                            <th>Amount Match</th>
-                            <th>Sales Matched (THB)</th>
-                            <th>Accru Matched (THB)</th>
+                            <th>Coin</th>
+                            <th>Best Bid (THB)</th>
+                            <th>Vol Used (input)</th>
+                            <th>Liquidity Depth (THB)</th>
                             <th>Slippage</th>
+                            <th>Safe Vol (Threshold)</th>
+                            <th>Safe THB</th>
+                            <th></th>
                         </tr>
                     </thead>
-                    <tbody id="detailBody"></tbody>
+                    <tbody id="summaryBody">
+                        <tr><td colspan="8" class="loading">Loading...</td></tr>
+                    </tbody>
                 </table>
             </div>
 
-            <!-- Scenario -5% -->
-            <div class="scenario-box">
-                <h3>Scenario -5% Slippage Test</h3>
-                <div class="detail-metrics">
-                    <div class="metric-card">
-                        <span class="label">Expected Size</span>
-                        <span class="value" id="sExpected">-</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="label">Min Size</span>
-                        <span class="value" id="sMinSize">-</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="label">Test Value (95%)</span>
-                        <span class="value" id="sTestValue">-</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="label">Vol Needed</span>
-                        <span class="value" id="sVolNeeded">-</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="label">Vol Received</span>
-                        <span class="value" id="sVolReceived">-</span>
-                    </div>
-                    <div class="metric-card">
-                        <span class="label">Scenario Slippage</span>
-                        <span class="value" id="sSlippage">-</span>
-                    </div>
+            <!-- Detail View (hidden by default) -->
+            <div id="detailSection" class="hidden">
+                <div class="detail-header">
+                    <h2 id="detailTitle">-</h2>
+                    <button onclick="closeDetail()">Close</button>
                 </div>
+                <div class="detail-vol-input">
+                    <label>Custom Vol Used: <input type="number" id="detailVolInput" placeholder="" min="0" step="any"></label>
+                    <button onclick="recalcDetail()">Recalculate</button>
+                    <button class="btn-reset" onclick="resetDetailVol()">Reset</button>
+                </div>
+                <div class="detail-metrics">
+                    <div class="metric-card"><span class="label">Best Bid</span><span class="value" id="dBestBid">-</span></div>
+                    <div class="metric-card"><span class="label">Vol Used</span><span class="value" id="dVolUsed">-</span></div>
+                    <div class="metric-card"><span class="label">Vol Received (THB)</span><span class="value" id="dVolReceived">-</span></div>
+                    <div class="metric-card"><span class="label">Diff</span><span class="value" id="dDiff">-</span></div>
+                    <div class="metric-card"><span class="label">Slippage</span><span class="value" id="dSlippage">-</span></div>
+                    <div class="metric-card highlight-card"><span class="label">Safe Vol (<span id="dThresholdLabel">-3.5%</span>)</span><span class="value" id="dSafeVol">-</span></div>
+                    <div class="metric-card highlight-card"><span class="label">Safe THB</span><span class="value" id="dSafeThb">-</span></div>
+                </div>
+                <h3>Order Book - Bid Side (at <span id="depthLabel">90</span>% depth)</h3>
                 <div class="table-scroll">
-                    <table id="scenarioTable">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Amount</th>
-                                <th>Bid Price</th>
-                                <th>Bid Size (THB)</th>
-                                <th>Accru Amount</th>
-                                <th>Amount Match</th>
-                                <th>Sales Matched (THB)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="scenarioBody"></tbody>
+                    <table id="detailTable">
+                        <thead><tr><th>#</th><th>Amount</th><th>Bid Price</th><th>Bid Size (THB)</th><th>Accru Amount</th><th>Amount Match</th><th>Sales Matched (THB)</th><th>Accru Matched (THB)</th><th>Slippage</th></tr></thead>
+                        <tbody id="detailBody"></tbody>
                     </table>
                 </div>
             </div>
-        </section>
-    </main>
+        </div>
+
+        <!-- ═══ Loan Viewer Page ═══ -->
+        <div class="page" id="page-viewer">
+            <div class="viewer-container">
+                <div class="viewer-header">
+                    <span class="brand-icon">L</span>
+                    <div>
+                        <h1>Liberix</h1>
+                        <p class="subtitle">Open-End Loan Viewer &middot; Read-Only</p>
+                    </div>
+                </div>
+                <div class="viewer-search">
+                    <input type="text" id="viewerLoanId" placeholder="OEL-2026-002">
+                    <button class="btn-primary" onclick="lookupLoan()">LOOK UP</button>
+                </div>
+                <div id="viewerResult"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Loan Modal -->
+    <div class="modal-overlay hidden" id="newLoanModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>New Open-End Loan</h2>
+                <button class="modal-close" onclick="closeNewLoanModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>LOAN ID</label>
+                        <input type="text" id="fLoanId" placeholder="e.g. OEL-2026-001">
+                    </div>
+                    <div class="form-group">
+                        <label>ASSET TYPE</label>
+                        <select id="fAssetType"><option value="">Select asset...</option></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>COLLATERAL AMOUNT</label>
+                        <input type="number" id="fCollateralAmount" value="0" step="any" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>INITIAL COLLATERAL VALUE (THB)</label>
+                        <input type="number" id="fInitCollateralValue" value="0" step="any" min="0">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>LOAN AMOUNT (THB)</label>
+                        <input type="number" id="fLoanAmount" value="0" step="any" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>LTV RATIO</label>
+                        <select id="fLtvRatio"><option value="">Select LTV...</option></select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>DAILY INTEREST RATE (%)</label>
+                        <input type="number" id="fDailyRate" placeholder="e.g. 0.05" step="any" min="0">
+                    </div>
+                    <div class="form-group">
+                        <label>START DATE</label>
+                        <input type="date" id="fStartDate">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>STATUS</label>
+                        <select id="fStatus">
+                            <option value="active">Active</option>
+                            <option value="pending_transfer">Pending Transfer</option>
+                            <option value="pending_deposit">Pending Deposit</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-secondary" onclick="closeNewLoanModal()">Cancel</button>
+                <button class="btn-primary" onclick="submitNewLoan()">Create Loan</button>
+            </div>
+        </div>
+    </div>
 
     <script src="/static/app.js"></script>
 </body>
