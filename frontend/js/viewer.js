@@ -5,7 +5,7 @@ async function userLookupLoan(){
   const err=document.getElementById('userLookupError');
   if(!id){err.textContent='Please enter a Loan ID.';return}
   try{
-    const r=await fetch('/api/loans/'+id);const d=await r.json();
+    const r=await fetch(API_BASE+'/api/loans/'+id);const d=await r.json();
     if(d.error){err.textContent='No loan found with ID "'+id+'".';return}
     err.textContent='';renderUserLoanCard(d);
   }catch(e){err.textContent='Error: '+e.message}

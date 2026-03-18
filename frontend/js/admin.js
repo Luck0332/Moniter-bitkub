@@ -50,10 +50,10 @@ function renderPricePanel(){
 
 // ── Loans ──
 async function loadActiveLoans(){
-  try{const r=await fetch('/api/loans?status=active');const d=await r.json();renderSummary(d.loans);renderLoanCards(d.loans,'loansGrid','emptyState')}catch(e){console.error(e)}
+  try{const r=await fetch(API_BASE+'/api/loans?status=active');const d=await r.json();renderSummary(d.loans);renderLoanCards(d.loans,'loansGrid','emptyState')}catch(e){console.error(e)}
 }
 async function loadClosedLoans(){
-  try{const r=await fetch('/api/loans?status=closed');const d=await r.json();renderLoanCards(d.loans,'closedGrid','closedEmpty')}catch(e){console.error(e)}
+  try{const r=await fetch(API_BASE+'/api/loans?status=closed');const d=await r.json();renderLoanCards(d.loans,'closedGrid','closedEmpty')}catch(e){console.error(e)}
 }
 
 function renderSummary(loans){
@@ -100,7 +100,7 @@ function renderLoanCards(loans,gridId,emptyId){
 
 // ── Loan Actions ──
 async function openModal(){
-  const r=await fetch('/api/loan-config');const c=await r.json();
+  const r=await fetch(API_BASE+'/api/loan-config');const c=await r.json();
   document.getElementById('fAssetType').innerHTML='<option value="">Select asset...</option>'+c.asset_types.map(a=>`<option value="${a}">${a}</option>`).join('');
   document.getElementById('fLtv').innerHTML='<option value="">Select LTV...</option>'+c.ltv_options.map(l=>`<option value="${l}">${l}%</option>`).join('');
   document.getElementById('fStartDate').value=new Date().toISOString().split('T')[0];
@@ -136,16 +136,16 @@ async function createLoan(){
     end_date:document.getElementById('fEndDate').value||null,
     status:document.getElementById('fStatus').value};
   if(!d.id||!d.asset_type){alert('Please fill Loan ID and Asset Type');return}
-  await fetch('/api/loans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
+  await fetch(API_BASE+'/api/loans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d)});
   closeModal();loadActiveLoans();
 }
 async function updateEndDate(id,value){
-  await fetch('/api/loans/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({end_date:value||null})});
+  await fetch(API_BASE+'/api/loans/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({end_date:value||null})});
   loadActiveLoans();
 }
 async function deleteLoan(id){
   if(!confirm('Delete loan '+id+'?'))return;
-  await fetch('/api/loans/'+id,{method:'DELETE'});loadActiveLoans();
+  await fetch(API_BASE+'/api/loans/'+id,{method:'DELETE'});loadActiveLoans();
 }
 
 // ── Liquidity Monitor ──

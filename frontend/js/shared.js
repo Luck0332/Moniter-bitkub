@@ -1,3 +1,7 @@
+// API base URL — set to Worker URL for cross-origin, or '' for same-origin
+const API_BASE = location.hostname.includes('pages.dev') || location.hostname.includes('liberix')
+  ? 'https://liberix-monitor.thanakon.workers.dev' : '';
+
 // Shared utilities used by both viewer and admin
 const ASSET_COLORS = {BTC:'#f7931a',USDT:'#26a17b',ETH:'#627eea',BNB:'#f3ba2f',SOL:'#9945ff',ADA:'#3366ff',DOT:'#e6007a',TRX:'#ef0027',XRP:'#8b949e',DOGE:'#c2a633',WLD:'#8b949e',TON:'#0098ea',SUI:'#4da2ff',AVAX:'#e84142',POL:'#8247e5'};
 let prices = {};
@@ -11,7 +15,7 @@ function ltvClass(v){return v<60?'ltv-safe':v<80?'ltv-warn':'ltv-danger'}
 
 async function fetchPrices(){
   try{
-    const r=await fetch('/api/prices');prices=await r.json();lastPriceFetch=new Date();
+    const r=await fetch(API_BASE+'/api/prices');prices=await r.json();lastPriceFetch=new Date();
     if(typeof renderPricePanel==='function') renderPricePanel();
     renderPriceStatus();
   }catch(e){console.error('Price fetch:',e)}
