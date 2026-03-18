@@ -148,11 +148,12 @@ async function openModal(){
   document.getElementById('fDailyRate').value='0.041666667';
   document.getElementById('fEndDate').value='';
   document.getElementById('modalOverlay').classList.add('show');
-  // Wire up auto-calc
-  document.getElementById('fAssetType').onchange=autoCalcModal;
-  document.getElementById('fCollateralAmt').oninput=autoCalcModal;
-  document.getElementById('fLtv').onchange=autoCalcModal;
-  autoCalcModal();
+  // Wire up auto-calc on every relevant field
+  ['fAssetType','fCollateralAmt','fLtv'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('input',autoCalcModal);
+    el.addEventListener('change',autoCalcModal);
+  });
 }
 function closeModal(){document.getElementById('modalOverlay').classList.remove('show')}
 function autoCalcModal(){

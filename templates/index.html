@@ -181,8 +181,8 @@
         <div class="form-group"><label class="form-label">Loan ID</label><input class="form-input" id="fLoanId" placeholder="e.g. OEL-2026-001"></div>
         <div class="form-group"><label class="form-label">Asset Type</label><select class="form-select" id="fAssetType"><option value="">Select asset...</option></select></div>
         <div class="form-group"><label class="form-label">Collateral Amount</label><input class="form-input" id="fCollateralAmt" type="number" step="any" placeholder="0.00000"></div>
-        <div class="form-group"><label class="form-label">Init. Collateral Value (THB)</label><input class="form-input" id="fInitCollateralVal" type="number" step="any" placeholder="0.00"></div>
-        <div class="form-group"><label class="form-label">Loan Amount (THB)</label><input class="form-input" id="fLoanAmt" type="number" step="any" placeholder="0.00"></div>
+        <div class="form-group"><label class="form-label">Init. Collateral Value (THB) <span style="color:var(--green);font-weight:400">auto</span></label><input class="form-input" id="fInitCollateralVal" type="number" step="any" placeholder="auto = amount × price"></div>
+        <div class="form-group"><label class="form-label">Loan Amount (THB) <span style="color:var(--green);font-weight:400">auto</span></label><input class="form-input" id="fLoanAmt" type="number" step="any" placeholder="auto = value × LTV"></div>
         <div class="form-group"><label class="form-label">LTV Ratio</label><select class="form-select" id="fLtv"><option value="">Select LTV...</option></select></div>
         <div class="form-group"><label class="form-label">Daily Interest Rate (%)</label><input class="form-input" id="fDailyRate" type="number" step="any" placeholder="e.g. 0.05"></div>
         <div class="form-group"><label class="form-label">Start Date</label><input class="form-input" id="fStartDate" type="date"></div>
