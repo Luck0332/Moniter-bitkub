@@ -1,8 +1,0 @@
-name = "liberix-monitor"
-main = "src/index.js"
-compatibility_date = "2024-01-01"
-
-[[d1_databases]]
-binding = "DB"
-database_name = "liberix-loans"
-database_id = "7356f310-a079-43d8-b77b-16133c38a952"

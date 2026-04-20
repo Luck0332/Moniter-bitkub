@@ -1,8 +1,14 @@
 services:
-  monitor:
+  app:
     build: .
     ports:
-      - "8000:8000"
-    restart: unless-stopped
+      - "3000:3000"
+    volumes:
+      - db_data:/app/data
     environment:
-      - TZ=Asia/Bangkok
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/liberix.db
+    restart: unless-stopped
+
+volumes:
+  db_data:

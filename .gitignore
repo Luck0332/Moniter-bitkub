@@ -1,6 +1,12 @@
 __pycache__/
 *.pyc
 .env
+.env.local
 .venv/
 node_modules/
 .wrangler/
+.next/
+liberix.db
+*.db-journal
+*.db-wal
+*.db-shm

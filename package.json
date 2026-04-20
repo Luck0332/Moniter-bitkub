@@ -1,19 +1,24 @@
 {
   "name": "liberix-monitor",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
   "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy",
-    "db:create": "wrangler d1 create liberix-loans",
-    "db:migrate": "wrangler d1 execute liberix-loans --file=migrations/0001_create_loans.sql",
-    "db:migrate:remote": "wrangler d1 execute liberix-loans --file=migrations/0001_create_loans.sql --remote",
-    "pages:deploy": "wrangler pages deploy frontend/ --project-name=liberix-monitor"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
-    "hono": "^4.0.0"
+    "next": "^15.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "better-sqlite3": "^11.9.1"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0"
   }
 }
