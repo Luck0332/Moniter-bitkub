@@ -3,12 +3,8 @@ services:
     build: .
     ports:
       - "3000:3000"
-    volumes:
-      - db_data:/app/data
+    env_file:
+      - .env.local
     environment:
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data/liberix.db
     restart: unless-stopped
-
-volumes:
-  db_data:

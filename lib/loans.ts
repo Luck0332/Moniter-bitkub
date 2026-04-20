@@ -1,5 +1,4 @@
-import { getDb } from './db';
-import type Database from 'better-sqlite3';
+import { d1Query, d1Run } from './db';
 
 export interface Loan {
   id: string;
@@ -24,25 +23,24 @@ export interface LoanWithMetrics extends Loan {
   current_ltv: number;
 }
 
-type Db = ReturnType<typeof getDb>;
-
-export function getAllLoans(db: Db = getDb()): Loan[] {
-  return db.prepare('SELECT * FROM loans ORDER BY created_at DESC').all() as Loan[];
+export async function getAllLoans(): Promise<Loan[]> {
+  return d1Query<Loan>('SELECT * FROM loans ORDER BY created_at DESC');
 }
 
-export function getActiveLoans(db: Db = getDb()): Loan[] {
-  return db.prepare("SELECT * FROM loans WHERE status != 'closed' ORDER BY created_at DESC").all() as Loan[];
+export async function getActiveLoans(): Promise<Loan[]> {
+  return d1Query<Loan>("SELECT * FROM loans WHERE status != 'closed' ORDER BY created_at DESC");
 }
 
-export function getClosedLoans(db: Db = getDb()): Loan[] {
-  return db.prepare("SELECT * FROM loans WHERE status = 'closed' ORDER BY created_at DESC").all() as Loan[];
+export async function getClosedLoans(): Promise<Loan[]> {
+  return d1Query<Loan>("SELECT * FROM loans WHERE status = 'closed' ORDER BY created_at DESC");
 }
 
-export function getLoanById(db: Db = getDb(), id: string): Loan | null {
-  return (db.prepare('SELECT * FROM loans WHERE id = ?').get(id) as Loan) || null;
+export async function getLoanById(id: string): Promise<Loan | null> {
+  const rows = await d1Query<Loan>('SELECT * FROM loans WHERE id = ?', [id]);
+  return rows[0] ?? null;
 }
 
-export function createLoan(db: Db = getDb(), data: Partial<Loan>): Loan {
+export async function createLoan(data: Partial<Loan>): Promise<Loan> {
   const loan: Loan = {
     id: data.id!,
     asset_type: data.asset_type!,
@@ -57,14 +55,13 @@ export function createLoan(db: Db = getDb(), data: Partial<Loan>): Loan {
     created_at: new Date().toISOString(),
   };
 
-  db.prepare(
+  await d1Run(
     `INSERT INTO loans (id, asset_type, collateral_amount, initial_collateral_value,
      loan_amount, ltv_ratio, daily_interest_rate, start_date, end_date, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    loan.id, loan.asset_type, loan.collateral_amount, loan.initial_collateral_value,
-    loan.loan_amount, loan.ltv_ratio, loan.daily_interest_rate,
-    loan.start_date, loan.end_date, loan.status, loan.created_at
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [loan.id, loan.asset_type, loan.collateral_amount, loan.initial_collateral_value,
+     loan.loan_amount, loan.ltv_ratio, loan.daily_interest_rate,
+     loan.start_date, loan.end_date, loan.status, loan.created_at]
   );
 
   return loan;
@@ -75,7 +72,7 @@ const ALLOWED_FIELDS = [
   'ltv_ratio','daily_interest_rate','start_date','end_date','status',
 ];
 
-export function updateLoan(db: Db = getDb(), id: string, updates: Partial<Loan>): Loan | null {
+export async function updateLoan(id: string, updates: Partial<Loan>): Promise<Loan | null> {
   const sets: string[] = [];
   const vals: unknown[] = [];
   for (const [key, val] of Object.entries(updates)) {
@@ -83,12 +80,12 @@ export function updateLoan(db: Db = getDb(), id: string, updates: Partial<Loan>)
   }
   if (!sets.length) return null;
   vals.push(id);
-  db.prepare(`UPDATE loans SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
-  return getLoanById(db, id);
+  await d1Run(`UPDATE loans SET ${sets.join(', ')} WHERE id = ?`, vals);
+  return getLoanById(id);
 }
 
-export function deleteLoan(db: Db = getDb(), id: string): boolean {
-  const result = db.prepare('DELETE FROM loans WHERE id = ?').run(id);
+export async function deleteLoan(id: string): Promise<boolean> {
+  const result = await d1Run('DELETE FROM loans WHERE id = ?', [id]);
   return result.changes > 0;
 }
 
