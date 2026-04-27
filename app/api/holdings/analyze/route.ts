@@ -61,7 +61,7 @@ export async function GET(req: NextRequest) {
     safety: calc.safety,
     threshold: threshold * 100,
     loan_count: assetLoans.length,
-    loan_collateral,
+    loan_collateral: loanCollateral,
     loan_principal: loanPrincipal,
     loan_repayment: Math.round(loanRepayment * 100) / 100,
     is_enough: isEnough,
