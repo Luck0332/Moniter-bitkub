@@ -19,7 +19,7 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: var(--bg); color: var(--text); font-family: var(--font-dm-sans, 'DM Sans'), sans-serif; min-height: 100vh; font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-inter, 'Inter'), sans-serif; min-height: 100vh; font-size: 14px; }
 .mono { font-family: var(--font-ibm-mono, 'IBM Plex Mono'), monospace; }
 
 /* ── Landing ── */

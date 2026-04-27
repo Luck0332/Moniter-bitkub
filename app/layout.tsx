@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
-import { DM_Sans, IBM_Plex_Mono } from 'next/font/google';
+import { Inter, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
-const dmSans = DM_Sans({
+const inter = Inter({
   subsets: ['latin'],
   weight: ['300', '400', '500', '600', '700'],
-  variable: '--font-dm-sans',
+  variable: '--font-inter',
 });
 
 const ibmPlexMono = IBM_Plex_Mono({
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${ibmPlexMono.variable}`}>{children}</body>
+      <body className={`${inter.variable} ${ibmPlexMono.variable}`}>{children}</body>
     </html>
   );
 }
