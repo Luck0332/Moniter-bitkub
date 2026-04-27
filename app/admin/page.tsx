@@ -31,6 +31,19 @@ interface LiqDetail {
   safety: { safe_vol: number; safe_thb: number; crossed_at_level: number; is_safe: boolean };
   levels: LiqDetailLevel[];
 }
+interface HoldingEntry {
+  asset_type: string; amount: number; updated_at: string;
+  current_price: number; current_value_thb: number;
+}
+interface SellAnalysis {
+  asset: string; current_price: number; holdings: number; holdings_value_thb: number;
+  sell_amount: number; best_bid: number; expected_thb: number; received_thb: number;
+  slippage_pct: number; threshold: number;
+  safety: { safe_vol: number; safe_thb: number; is_safe: boolean; crossed_at_level: number };
+  loan_count: number; loan_collateral: number; loan_principal: number; loan_repayment: number;
+  is_enough: boolean; surplus_thb: number;
+  levels: LiqDetailLevel[];
+}
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const PASSCODE_HASH = '2440809e3ec26b00648124b65a81946fff578a91c8365009ffe4dd0e964af874';
@@ -64,7 +77,7 @@ export default function AdminPage() {
   const lockInputRef = useRef<HTMLInputElement>(null);
 
   // App
-  const [page, setPage] = useState<'loans' | 'liquidity' | 'closed'>('loans');
+  const [page, setPage] = useState<'loans' | 'liquidity' | 'closed' | 'holdings'>('loans');
   const [loans, setLoans] = useState<Loan[]>([]);
   const [closedLoans, setClosedLoans] = useState<Loan[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -87,6 +100,20 @@ export default function AdminPage() {
   const [liqCoin, setLiqCoin] = useState<string | null>(null);
   const [volInputs, setVolInputs] = useState<Record<string, string>>({});
   const [liqDetailVol, setLiqDetailVol] = useState('');
+
+  // Holdings
+  const [holdings, setHoldings] = useState<HoldingEntry[]>([]);
+  const [holdingsInputs, setHoldingsInputs] = useState<Record<string, string>>({});
+  const [holdingsSaving, setHoldingsSaving] = useState(false);
+  const [holdingsSaved, setHoldingsSaved] = useState(false);
+  const [holdingsTab, setHoldingsTab] = useState<'import' | 'analyze'>('import');
+  const [analyzeAsset, setAnalyzeAsset] = useState('');
+  const [analyzeSellAmt, setAnalyzeSellAmt] = useState('');
+  const [analyzeThreshold, setAnalyzeThreshold] = useState(-3.5);
+  const [analyzeResult, setAnalyzeResult] = useState<SellAnalysis | null>(null);
+  const [analyzeLoading, setAnalyzeLoading] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState('');
+  const [analyzeShowBook, setAnalyzeShowBook] = useState(false);
 
   // ── Init ───────────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -229,6 +256,49 @@ export default function AdminPage() {
     loadActiveLoans();
   }
 
+  // ── Holdings ───────────────────────────────────────────────────────────────
+  async function loadHoldings() {
+    try {
+      const r = await fetch('/api/holdings');
+      const d = await r.json();
+      setHoldings(d.holdings || []);
+      const inputs: Record<string, string> = {};
+      for (const h of d.holdings || []) inputs[h.asset_type] = h.amount > 0 ? String(h.amount) : '';
+      setHoldingsInputs(inputs);
+    } catch (e) { console.error(e); }
+  }
+
+  async function saveHoldings() {
+    setHoldingsSaving(true); setHoldingsSaved(false);
+    const entries = Object.entries(holdingsInputs)
+      .map(([asset_type, v]) => ({ asset_type, amount: parseFloat(v) || 0 }))
+      .filter(e => e.amount > 0);
+    await fetch('/api/holdings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings: entries }),
+    });
+    await loadHoldings();
+    setHoldingsSaving(false); setHoldingsSaved(true);
+    setTimeout(() => setHoldingsSaved(false), 3000);
+  }
+
+  async function runSellAnalysis() {
+    if (!analyzeAsset) { setAnalyzeError('Please select an asset.'); return; }
+    setAnalyzeLoading(true); setAnalyzeError(''); setAnalyzeResult(null); setAnalyzeShowBook(false);
+    try {
+      let url = `/api/holdings/analyze?asset=${analyzeAsset}&threshold=${analyzeThreshold / 100}`;
+      if (analyzeSellAmt) url += `&sell_amount=${analyzeSellAmt}`;
+      const r = await fetch(url);
+      const d = await r.json();
+      if (d.error) { setAnalyzeError(d.error); }
+      else {
+        setAnalyzeResult(d);
+        if (!analyzeSellAmt) setAnalyzeSellAmt(String(d.sell_amount));
+      }
+    } catch (e) { setAnalyzeError('Error: ' + (e as Error).message); }
+    setAnalyzeLoading(false);
+  }
+
   // ── Liquidity ──────────────────────────────────────────────────────────────
   async function fetchLiqSummary() {
     setLiqLoading(true);
@@ -282,6 +352,7 @@ export default function AdminPage() {
     if (p === 'loans') loadActiveLoans();
     if (p === 'liquidity') fetchLiqSummary();
     if (p === 'closed') loadClosedLoans();
+    if (p === 'holdings') loadHoldings();
   }
 
   // ── Keyboard ───────────────────────────────────────────────────────────────
@@ -325,10 +396,14 @@ export default function AdminPage() {
           </div>
           <div className="sidebar-section">
             <div className="sidebar-section-title">Management</div>
-            {(['loans', 'liquidity', 'closed'] as const).map(p => (
-              <div key={p} className={`sidebar-link${page === p ? ' active' : ''}`} onClick={() => goToPage(p)}>
-                <span className="ico">{p === 'loans' ? '💳' : p === 'liquidity' ? '📊' : '🗃️'}</span>
-                {p === 'loans' ? 'Active Loans' : p === 'liquidity' ? 'Liquidity Monitor' : 'Closed Loans'}
+            {([
+              { key: 'loans', ico: '💳', label: 'Active Loans' },
+              { key: 'liquidity', ico: '📊', label: 'Liquidity Monitor' },
+              { key: 'holdings', ico: '💼', label: 'Holdings & Sell' },
+              { key: 'closed', ico: '🗃️', label: 'Closed Loans' },
+            ] as const).map(({ key, ico, label }) => (
+              <div key={key} className={`sidebar-link${page === key ? ' active' : ''}`} onClick={() => goToPage(key)}>
+                <span className="ico">{ico}</span> {label}
               </div>
             ))}
           </div>
@@ -429,6 +504,23 @@ export default function AdminPage() {
                 <LiquidityDetail detail={liqDetail} threshold={threshold} depth={depth} liqDetailVol={liqDetailVol} setLiqDetailVol={setLiqDetailVol} onRecalc={recalcDetail} onClose={() => { setLiqDetail(null); setLiqCoin(null); }} slipClass={slipClass} />
               )}
             </>
+          )}
+
+          {/* ── HOLDINGS PAGE ── */}
+          {page === 'holdings' && (
+            <HoldingsPage
+              holdings={holdings} holdingsInputs={holdingsInputs} setHoldingsInputs={setHoldingsInputs}
+              holdingsSaving={holdingsSaving} holdingsSaved={holdingsSaved} onSave={saveHoldings}
+              prices={prices}
+              tab={holdingsTab} setTab={setHoldingsTab}
+              analyzeAsset={analyzeAsset} setAnalyzeAsset={setAnalyzeAsset}
+              analyzeSellAmt={analyzeSellAmt} setAnalyzeSellAmt={setAnalyzeSellAmt}
+              analyzeThreshold={analyzeThreshold} setAnalyzeThreshold={setAnalyzeThreshold}
+              analyzeResult={analyzeResult} analyzeLoading={analyzeLoading}
+              analyzeError={analyzeError} analyzeShowBook={analyzeShowBook}
+              setAnalyzeShowBook={setAnalyzeShowBook}
+              onAnalyze={runSellAnalysis} onLock={lockApp}
+            />
           )}
 
           {/* ── CLOSED LOANS PAGE ── */}
@@ -697,6 +789,256 @@ function LiquidityDetail({ detail: d, threshold, depth, liqDetailVol, setLiqDeta
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+// ── Holdings Page ─────────────────────────────────────────────────────────────
+const ASSET_TYPES_ALL = ['BTC','ETH','SOL','BNB','ADA','DOT','POL','TRX','TON','XRP','SUI','AVAX','DOGE','WLD','USDT'];
+
+function HoldingsPage({ holdings, holdingsInputs, setHoldingsInputs, holdingsSaving, holdingsSaved, onSave, prices,
+  tab, setTab, analyzeAsset, setAnalyzeAsset, analyzeSellAmt, setAnalyzeSellAmt,
+  analyzeThreshold, setAnalyzeThreshold, analyzeResult, analyzeLoading, analyzeError,
+  analyzeShowBook, setAnalyzeShowBook, onAnalyze, onLock,
+}: {
+  holdings: HoldingEntry[]; holdingsInputs: Record<string, string>;
+  setHoldingsInputs: (fn: (p: Record<string, string>) => Record<string, string>) => void;
+  holdingsSaving: boolean; holdingsSaved: boolean; onSave: () => void; prices: Record<string, number>;
+  tab: 'import' | 'analyze'; setTab: (t: 'import' | 'analyze') => void;
+  analyzeAsset: string; setAnalyzeAsset: (v: string) => void;
+  analyzeSellAmt: string; setAnalyzeSellAmt: (v: string) => void;
+  analyzeThreshold: number; setAnalyzeThreshold: (v: number) => void;
+  analyzeResult: SellAnalysis | null; analyzeLoading: boolean; analyzeError: string;
+  analyzeShowBook: boolean; setAnalyzeShowBook: (v: boolean) => void;
+  onAnalyze: () => void; onLock: () => void;
+}) {
+  const fmtT = (n: number) => '฿' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n: number, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtP = (n: number | null) => n == null || isNaN(n) ? '-' : n.toFixed(3) + '%';
+
+  const holdingMap: Record<string, HoldingEntry> = {};
+  for (const h of holdings) holdingMap[h.asset_type] = h;
+
+  const totalValue = Object.entries(holdingsInputs).reduce((s, [a, v]) => {
+    const amt = parseFloat(v) || 0;
+    return s + amt * (prices[a] || 0);
+  }, 0);
+
+  return (
+    <>
+      <div className="page-header">
+        <div><div className="page-title">Holdings & Sell Analysis</div><div className="page-subtitle">Manage asset balances and simulate sell scenarios</div></div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button className="lock-toggle" onClick={onLock}>&#128274; Lock</button>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 24, borderBottom: '1px solid var(--border)', paddingBottom: 0 }}>
+        {(['import', 'analyze'] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)} style={{
+            padding: '9px 20px', background: 'none', border: 'none', cursor: 'pointer',
+            borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+            color: tab === t ? 'var(--accent)' : 'var(--text-2)', fontWeight: tab === t ? 700 : 500,
+            fontSize: 13, fontFamily: 'inherit', marginBottom: -1,
+          }}>
+            {t === 'import' ? '📥 Import Holdings' : '📈 Sell Analysis'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── IMPORT TAB ── */}
+      {tab === 'import' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-3)' }}>
+              Total Portfolio Value: <span style={{ fontFamily: 'var(--font-ibm-mono,monospace)', fontWeight: 700, color: 'var(--text)', fontSize: 15 }}>{fmtT(totalValue)}</span>
+            </div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              {holdingsSaved && <span style={{ fontSize: 12, color: 'var(--green)' }}>✓ Saved</span>}
+              <button className="btn btn-primary" onClick={onSave} disabled={holdingsSaving}>{holdingsSaving ? 'Saving…' : 'Save Holdings'}</button>
+            </div>
+          </div>
+
+          <div className="table-scroll">
+            <table className="liq-table">
+              <thead><tr><th>Asset</th><th style={{ textAlign: 'left' }}>Amount (Holdings)</th><th>Current Price (THB)</th><th>Portfolio Value (THB)</th><th>Last Updated</th></tr></thead>
+              <tbody>
+                {ASSET_TYPES_ALL.map(a => {
+                  const val = parseFloat(holdingsInputs[a] || '0') || 0;
+                  const price = prices[a] || 0;
+                  const thbVal = val * price;
+                  const existing = holdingMap[a];
+                  return (
+                    <tr key={a} style={{ background: val > 0 ? 'rgba(74,158,255,.04)' : undefined }}>
+                      <td><span className={`asset-chip ${a.toLowerCase()}`}>{a}</span></td>
+                      <td style={{ textAlign: 'left' }}>
+                        <input type="number" className="vol-input" style={{ width: 130 }} step="any" min="0"
+                          value={holdingsInputs[a] || ''}
+                          placeholder="0"
+                          onChange={e => setHoldingsInputs(p => ({ ...p, [a]: e.target.value }))}
+                        />
+                      </td>
+                      <td>{price > 0 ? fmtT(price) : <span style={{ color: 'var(--text-3)' }}>—</span>}</td>
+                      <td style={{ fontFamily: 'var(--font-ibm-mono,monospace)', fontWeight: thbVal > 0 ? 600 : 400, color: thbVal > 0 ? 'var(--text)' : 'var(--text-3)' }}>
+                        {thbVal > 0 ? fmtT(thbVal) : '—'}
+                      </td>
+                      <td style={{ fontSize: 11, color: 'var(--text-3)' }}>
+                        {existing?.updated_at ? new Date(existing.updated_at).toLocaleDateString() : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── ANALYZE TAB ── */}
+      {tab === 'analyze' && (
+        <div>
+          {/* Config form */}
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '20px 24px', marginBottom: 24, maxWidth: 640 }}>
+            <div className="edit-section-title" style={{ marginBottom: 16 }}>Sell Scenario Configuration</div>
+            <div className="form-grid">
+              <div className="form-group">
+                <label className="form-label">Asset to Sell</label>
+                <select className="form-select" value={analyzeAsset} onChange={e => { setAnalyzeAsset(e.target.value); setAnalyzeSellAmt(''); }}>
+                  <option value="">Select asset…</option>
+                  {ASSET_TYPES_ALL.map(a => {
+                    const h = holdingMap[a];
+                    return <option key={a} value={a}>{a}{h && h.amount > 0 ? ` (${fmtN(h.amount, 6)})` : ''}</option>;
+                  })}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Sell Amount <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(blank = all holdings)</span></label>
+                <input className="form-input" type="number" step="any" min="0" value={analyzeSellAmt}
+                  onChange={e => setAnalyzeSellAmt(e.target.value)} placeholder="All holdings" />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Safety Threshold (%)</label>
+                <input className="form-input" type="number" step="0.1" value={analyzeThreshold}
+                  onChange={e => setAnalyzeThreshold(Number(e.target.value))} />
+              </div>
+            </div>
+            {analyzeError && <div style={{ color: 'var(--red)', fontSize: 12, marginTop: 12 }}>{analyzeError}</div>}
+            <div style={{ marginTop: 16 }}>
+              <button className="btn btn-primary" onClick={onAnalyze} disabled={analyzeLoading || !analyzeAsset}>
+                {analyzeLoading ? 'Analyzing…' : '📈 Analyze Sell Scenario'}
+              </button>
+            </div>
+          </div>
+
+          {/* Results */}
+          {analyzeResult && <SellAnalysisResult result={analyzeResult} showBook={analyzeShowBook} setShowBook={setAnalyzeShowBook} />}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ── Sell Analysis Result ──────────────────────────────────────────────────────
+function SellAnalysisResult({ result: r, showBook, setShowBook }: {
+  result: SellAnalysis; showBook: boolean; setShowBook: (v: boolean) => void;
+}) {
+  const fmtT = (n: number) => '฿' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtN = (n: number, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const fmtP = (n: number | null) => n == null || isNaN(n) ? '-' : n.toFixed(3) + '%';
+  const slipC = (p: number) => { const t = Math.abs(r.threshold); return Math.abs(p) < t * 0.5 ? 'slip-ok' : Math.abs(p) < t ? 'slip-warn' : 'slip-danger'; };
+
+  const verdictColor = r.is_enough ? 'var(--green)' : 'var(--red)';
+  const verdictBg = r.is_enough ? 'rgba(34,197,128,.08)' : 'rgba(239,68,102,.08)';
+
+  return (
+    <div>
+      {/* Verdict banner */}
+      <div style={{ background: verdictBg, border: `1px solid ${verdictColor}`, borderRadius: 12, padding: '16px 24px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: verdictColor, marginBottom: 4 }}>
+            {r.is_enough ? '✓ SUFFICIENT — Sell proceeds cover loan obligations' : '✗ SHORTFALL — Sell proceeds do not cover loan obligations'}
+          </div>
+          <div style={{ fontFamily: 'var(--font-ibm-mono,monospace)', fontSize: 20, fontWeight: 700, color: verdictColor }}>
+            {r.is_enough ? '+' : ''}{fmtT(r.surplus_thb)}
+            <span style={{ fontSize: 12, fontWeight: 400, color: 'var(--text-3)', marginLeft: 8 }}>
+              {r.is_enough ? 'surplus' : 'shortfall'}
+            </span>
+          </div>
+        </div>
+        <span className={`asset-chip ${r.asset.toLowerCase()}`} style={{ fontSize: 14, padding: '6px 14px' }}>{r.asset}</span>
+      </div>
+
+      {/* Summary cards */}
+      <div className="summary-strip" style={{ marginBottom: 20 }}>
+        <div className="summary-card green">
+          <div className="summary-label">Holdings</div>
+          <div className="summary-value" style={{ fontSize: 18 }}>{fmtN(r.holdings, 6)}</div>
+          <div className="summary-sub">{r.asset} · {fmtT(r.holdings_value_thb)}</div>
+        </div>
+        <div className="summary-card blue">
+          <div className="summary-label">Sell Amount</div>
+          <div className="summary-value" style={{ fontSize: 18 }}>{fmtN(r.sell_amount, 6)}</div>
+          <div className="summary-sub">Best Bid: {fmtT(r.best_bid)}</div>
+        </div>
+        <div className="summary-card orange">
+          <div className="summary-label">Will Receive (THB)</div>
+          <div className="summary-value">{fmtT(r.received_thb)}</div>
+          <div className="summary-sub">Expected: {fmtT(r.expected_thb)}</div>
+        </div>
+        <div className={`summary-card ${Math.abs(r.slippage_pct) > Math.abs(r.threshold) ? 'orange' : 'green'}`}>
+          <div className="summary-label">Slippage</div>
+          <div className="summary-value">{fmtP(r.slippage_pct)}</div>
+          <div className="summary-sub">Threshold: {r.threshold}%{r.safety.is_safe ? ' · SAFE' : ''}</div>
+        </div>
+        <div className="summary-card purple">
+          <div className="summary-label">Loan Obligations ({r.loan_count} loans)</div>
+          <div className="summary-value">{fmtT(r.loan_repayment)}</div>
+          <div className="summary-sub">Collateral: {fmtN(r.loan_collateral, 6)} {r.asset}</div>
+        </div>
+      </div>
+
+      {/* Safety line info */}
+      {!r.safety.is_safe && (
+        <div style={{ background: 'rgba(245,158,11,.07)', border: '1px dashed var(--orange)', borderRadius: 10, padding: '12px 18px', marginBottom: 20, fontSize: 13 }}>
+          <span style={{ color: 'var(--orange)', fontWeight: 700 }}>⚠ Safety Line ({r.threshold}%):</span>
+          {' '}Safe to sell up to <strong style={{ fontFamily: 'var(--font-ibm-mono,monospace)' }}>{fmtN(r.safety.safe_vol, 6)} {r.asset}</strong>
+          {' '}= <strong style={{ fontFamily: 'var(--font-ibm-mono,monospace)' }}>{fmtT(r.safety.safe_thb)}</strong> before exceeding slippage threshold.
+        </div>
+      )}
+
+      {/* Order book toggle */}
+      <button className="btn btn-ghost btn-sm" onClick={() => setShowBook(!showBook)} style={{ marginBottom: 16 }}>
+        {showBook ? '▲ Hide Order Book' : '▼ Show Order Book Detail'}
+      </button>
+
+      {showBook && (
+        <div className="table-scroll">
+          <table className="liq-table">
+            <thead><tr><th>#</th><th>Amount</th><th>Price</th><th>Bid Size</th><th>Accru Amt</th><th>Amt Match</th><th>Sales Match</th><th>Accru Match</th><th>Slip %</th></tr></thead>
+            <tbody>
+              {r.levels.map((l, i) => {
+                const bb = r.best_bid;
+                let ls: number | null = null;
+                if (l.accru_matched > 0 && l.amount_match > 0) {
+                  let av = 0; for (let j = 0; j <= i; j++) av += r.levels[j].amount_match;
+                  if (av > 0 && bb > 0) ls = ((l.accru_matched - av * bb) / (av * bb)) * 100;
+                }
+                const cls = l.amount_match > 0 && l.amount_match >= l.amount ? 'row-matched' : l.amount_match > 0 ? 'row-partial' : 'row-unmatched';
+                return (
+                  <tr key={i} className={cls}>
+                    <td>{i + 1}</td>
+                    <td>{fmtN(l.amount, 6)}</td><td>{fmtN(l.price, 2)}</td><td>{fmtN(l.bid_size, 2)}</td>
+                    <td>{fmtN(l.accru_amount, 6)}</td><td>{fmtN(l.amount_match, 6)}</td>
+                    <td>{fmtN(l.sales_matched, 2)}</td><td>{fmtN(l.accru_matched, 2)}</td>
+                    <td className={ls != null ? slipC(ls) : ''}>{ls != null ? fmtP(ls) : '-'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
