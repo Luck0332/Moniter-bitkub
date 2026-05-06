@@ -44,9 +44,9 @@ interface SellAnalysis {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const PASSCODE_HASH = '2440809e3ec26b00648124b65a81946fff578a91c8365009ffe4dd0e964af874';
-const ASSET_COLORS: Record<string, string> = { BTC: '#f7931a', USDT: '#26a17b', ETH: '#627eea', BNB: '#f3ba2f', SOL: '#9945ff', ADA: '#3366ff', DOT: '#e6007a', TRX: '#ef0027', XRP: '#8b949e', DOGE: '#c2a633', WLD: '#8b949e', TON: '#0098ea', SUI: '#4da2ff', AVAX: '#e84142', POL: '#8247e5' };
+const ASSET_COLORS: Record<string, string> = { BTC: '#f7931a', USDT: '#26a17b', ETH: '#627eea', BNB: '#f3ba2f', SOL: '#9945ff', ADA: '#3366ff', DOT: '#e6007a', TRX: '#ef0027', XRP: '#8b949e', DOGE: '#c2a633', WLD: '#8b949e', TON: '#0098ea', SUI: '#4da2ff', AVAX: '#e84142', POL: '#8247e5', KUB: '#1abc9c', JFIN: '#29b6f6' };
 const ASSETS_SHOW = ['BTC', 'USDT', 'ETH', 'BNB', 'SOL'];
-const ASSET_TYPES_ALL = ['BTC', 'ETH', 'SOL', 'BNB', 'ADA', 'DOT', 'POL', 'TRX', 'TON', 'XRP', 'SUI', 'AVAX', 'DOGE', 'WLD', 'USDT'];
+const ASSET_TYPES_ALL = ['BTC', 'ETH', 'SOL', 'BNB', 'ADA', 'DOT', 'POL', 'TRX', 'TON', 'XRP', 'SUI', 'AVAX', 'DOGE', 'WLD', 'USDT', 'KUB', 'JFIN'];
 const fmtThb = (n: number) => '฿' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtNum = (n: number, d = 2) => Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtPct = (n: number | null) => n == null || isNaN(n) ? '-' : n.toFixed(3) + '%';

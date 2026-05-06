@@ -195,6 +195,8 @@ body { background: var(--bg); color: var(--text); font-family: var(--font-inter,
 .chip-sui { background: rgba(77,162,255,.12); color: #4da2ff; }
 .chip-avax { background: rgba(232,65,66,.12); color: #e84142; }
 .chip-pol { background: rgba(130,71,229,.12); color: #8247e5; }
+.chip-kub { background: rgba(26,188,156,.12); color: #1abc9c; }
+.chip-jfin { background: rgba(41,182,246,.12); color: #29b6f6; }
 .sbadge { padding: 3px 8px; border-radius: 5px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; }
 .s-active { background: rgba(13,199,178,.12); color: var(--green); }
 .s-pending_transfer { background: rgba(79,143,255,.1); color: var(--accent); }
