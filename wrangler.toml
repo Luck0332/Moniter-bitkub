@@ -1,0 +1,10 @@
+name = "liberix-monitor"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = ".open-next/assets"
+
+[vars]
+# Set these in Cloudflare Pages dashboard → Settings → Environment Variables
+# CLOUDFLARE_ACCOUNT_ID = "..."
+# CLOUDFLARE_D1_DATABASE_ID = "..."
+# CLOUDFLARE_API_TOKEN = "..."
