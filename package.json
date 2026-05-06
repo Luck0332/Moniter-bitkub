@@ -6,8 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "build:cf": "opennextjs-cloudflare build",
-    "deploy": "opennextjs-cloudflare build && wrangler pages deploy",
+    "build:cf": "opennextjs-cloudflare build && node scripts/cf-dist.mjs",
+    "deploy": "npm run build:cf && wrangler pages deploy .open-next/dist --project-name liberix-monitor",
     "db:migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
