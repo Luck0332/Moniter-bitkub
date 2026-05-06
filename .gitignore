@@ -10,3 +10,4 @@ liberix.db
 *.db-journal
 *.db-wal
 *.db-shm
+.open-next
