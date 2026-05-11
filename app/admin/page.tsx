@@ -19,6 +19,7 @@ interface CoinSummary {
   best_bid: number; total_amount: number; liquidity_depth: number; slippage_pct: number;
   vol_used: number; threshold: number; threshold_breached: boolean; error?: string;
   safety: { safe_vol: number; safe_thb: number; is_safe: boolean };
+  price_normalized?: boolean;
 }
 interface LiqSummary { timestamp: string; coins: Record<string, CoinSummary> }
 interface LiqDetailLevel {
@@ -30,6 +31,8 @@ interface LiqDetail {
   slippage: number; threshold: number;
   safety: { safe_vol: number; safe_thb: number; crossed_at_level: number; is_safe: boolean };
   levels: LiqDetailLevel[];
+  price_normalized?: boolean; book_best_bid?: number;
+  from_cache?: boolean; cache_age_ms?: number;
 }
 interface HoldingEntry { asset_type: string; amount: number; updated_at: string; current_price: number; current_value_thb: number; }
 interface SellAnalysis {
@@ -40,10 +43,11 @@ interface SellAnalysis {
   loan_count: number; loan_collateral: number; loan_principal: number; loan_repayment: number;
   is_enough: boolean; surplus_thb: number;
   levels: LiqDetailLevel[];
+  price_normalized?: boolean; book_best_bid?: number;
+  from_cache?: boolean; cache_age_ms?: number;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const PASSCODE_HASH = '2440809e3ec26b00648124b65a81946fff578a91c8365009ffe4dd0e964af874';
 const ASSET_COLORS: Record<string, string> = { BTC: '#f7931a', USDT: '#26a17b', ETH: '#627eea', BNB: '#f3ba2f', SOL: '#9945ff', ADA: '#3366ff', DOT: '#e6007a', TRX: '#ef0027', XRP: '#8b949e', DOGE: '#c2a633', WLD: '#8b949e', TON: '#0098ea', SUI: '#4da2ff', AVAX: '#e84142', POL: '#8247e5', KUB: '#1abc9c', JFIN: '#29b6f6' };
 const ASSETS_SHOW = ['BTC', 'USDT', 'ETH', 'BNB', 'SOL'];
 const ASSET_TYPES_ALL = ['BTC', 'ETH', 'SOL', 'BNB', 'ADA', 'DOT', 'POL', 'TRX', 'TON', 'XRP', 'SUI', 'AVAX', 'DOGE', 'WLD', 'USDT', 'KUB', 'JFIN'];
@@ -52,12 +56,6 @@ const fmtNum = (n: number, d = 2) => Number(n).toLocaleString('en-US', { minimum
 const fmtPct = (n: number | null) => n == null || isNaN(n) ? '-' : n.toFixed(3) + '%';
 const ltvColor = (v: number) => v < 60 ? 'var(--green)' : v < 80 ? 'var(--orange)' : 'var(--red)';
 const ltvClass = (v: number) => v < 60 ? 'ltv-safe' : v < 80 ? 'ltv-warn' : 'ltv-danger';
-
-async function hashPasscode(s: string): Promise<string> {
-  const d = new TextEncoder().encode(s);
-  const h = await crypto.subtle.digest('SHA-256', d);
-  return Array.from(new Uint8Array(h)).map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 const emptyForm = (): LoanForm => ({
   id: '', asset_type: '', collateral_amount: '', initial_collateral_value: '',
@@ -108,6 +106,22 @@ export default function AdminPage() {
   const [analyzeError, setAnalyzeError] = useState('');
   const [analyzeShowBook, setAnalyzeShowBook] = useState(false);
 
+  // Refs to avoid stale closures in price-driven auto-refresh
+  const analyzeStateRef = useRef<{ asset: string; sellAmt: string; threshold: number; active: boolean }>({ asset: '', sellAmt: '', threshold: -3.5, active: false });
+  useEffect(() => {
+    analyzeStateRef.current = { asset: analyzeAsset, sellAmt: analyzeSellAmt, threshold: analyzeThreshold, active: !!analyzeResult };
+  }, [analyzeAsset, analyzeSellAmt, analyzeThreshold, analyzeResult]);
+
+  const liqStateRef = useRef<{ active: boolean; depth: number; threshold: number }>({ active: false, depth: 90, threshold: -3.5 });
+  useEffect(() => {
+    liqStateRef.current = { active: page === 'liquidity' && !!liqData, depth, threshold };
+  }, [page, liqData, depth, threshold]);
+
+  const liqDetailRef = useRef<{ coin: string | null; vol: string; depth: number; threshold: number; active: boolean }>({ coin: null, vol: '', depth: 90, threshold: -3.5, active: false });
+  useEffect(() => {
+    liqDetailRef.current = { coin: liqCoin, vol: liqDetailVol, depth, threshold, active: !!liqDetail };
+  }, [liqCoin, liqDetailVol, depth, threshold, liqDetail]);
+
   useEffect(() => {
     if (sessionStorage.getItem('liberix-admin')) {
       setLocked(false);
@@ -119,7 +133,7 @@ export default function AdminPage() {
 
   const fetchPricesData = useCallback(async () => {
     try {
-      const r = await fetch('/api/prices');
+      const r = await fetch(`/api/prices?_t=${Date.now()}`);
       const d = await r.json();
       setPrices(d);
       setLastPriceFetch(new Date());
@@ -129,7 +143,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (locked) return;
     fetchPricesData();
-    const iv = setInterval(fetchPricesData, 60000);
+    const iv = setInterval(fetchPricesData, 15000);
     return () => clearInterval(iv);
   }, [locked, fetchPricesData]);
 
@@ -137,12 +151,51 @@ export default function AdminPage() {
     if (!lastPriceFetch) { setPriceStatus('loading...'); return; }
     const update = () => {
       const s = Math.round((Date.now() - lastPriceFetch.getTime()) / 1000);
-      setPriceStatus(s < 60 ? 'just now' : Math.floor(s / 60) + 'm ago');
+      setPriceStatus(s < 15 ? 'just now' : s < 60 ? s + 's ago' : Math.floor(s / 60) + 'm ago');
     };
     update();
-    const iv = setInterval(update, 30000);
+    const iv = setInterval(update, 5000);
     return () => clearInterval(iv);
   }, [lastPriceFetch]);
+
+  // Auto-refresh sell analysis + liquidity whenever prices update (silent — no loading flash)
+  useEffect(() => {
+    const { asset, sellAmt, threshold: aThresh, active: aActive } = analyzeStateRef.current;
+    if (aActive && asset) {
+      (async () => {
+        try {
+          let url = `/api/holdings/analyze?asset=${asset}&threshold=${aThresh / 100}&_t=${Date.now()}`;
+          if (sellAmt) url += `&sell_amount=${sellAmt}`;
+          const r = await fetch(url);
+          const d = await r.json();
+          if (!d.error) setAnalyzeResult(d);
+        } catch { /* silent */ }
+      })();
+    }
+    const { active: lActive, depth: lDepth, threshold: lThresh } = liqStateRef.current;
+    if (lActive) {
+      (async () => {
+        try {
+          const r = await fetch(`/api/liquidity/summary?depth=${lDepth / 100}&threshold=${lThresh / 100}&_t=${Date.now()}`);
+          const d = await r.json();
+          setLiqData(d);
+          setLiqLastUpdate(new Date(d.timestamp).toLocaleTimeString());
+        } catch { /* silent */ }
+      })();
+    }
+    const { active: dActive, coin: dCoin, vol: dVol, depth: dDepth, threshold: dThresh } = liqDetailRef.current;
+    if (dActive && dCoin) {
+      (async () => {
+        try {
+          let url = `/api/liquidity/orderbook/${dCoin}?depth=${dDepth / 100}&threshold=${dThresh / 100}&_t=${Date.now()}`;
+          const v = parseFloat(dVol);
+          if (v > 0) url += `&custom_vol=${v}`;
+          const r = await fetch(url);
+          setLiqDetail(await r.json());
+        } catch { /* silent */ }
+      })();
+    }
+  }, [prices]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') { setShowModal(false); setLiqDetail(null); setLiqCoin(null); } };
@@ -151,18 +204,27 @@ export default function AdminPage() {
   }, []);
 
   async function attemptUnlock() {
-    const hash = await hashPasscode(passcode);
-    if (hash === PASSCODE_HASH) {
-      setLocked(false);
-      sessionStorage.setItem('liberix-admin', '1');
-      setPasscode('');
-      setLockError('');
-      loadActiveLoans();
-    } else {
-      setLockShake(true);
-      setLockError('Incorrect passcode.');
-      setPasscode('');
-      setTimeout(() => { setLockShake(false); lockInputRef.current?.focus(); }, 500);
+    try {
+      const r = await fetch('/api/admin/unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ passcode }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setLocked(false);
+        sessionStorage.setItem('liberix-admin', '1');
+        setPasscode('');
+        setLockError('');
+        loadActiveLoans();
+      } else {
+        setLockShake(true);
+        setLockError('Incorrect passcode.');
+        setPasscode('');
+        setTimeout(() => { setLockShake(false); lockInputRef.current?.focus(); }, 500);
+      }
+    } catch {
+      setLockError('Connection error.');
     }
   }
 
@@ -437,7 +499,10 @@ export default function AdminPage() {
                           return (
                             <tr key={coin}>
                               <td style={{ fontWeight: 600 }}>{coin}</td>
-                              <td>{fmtNum(info.best_bid, 2)}</td>
+                              <td>
+                                {fmtNum(info.best_bid, 2)}
+                                {info.price_normalized && <span title="Order book prices were stale and have been normalized to current ticker price. Coin quantities reflect a cached snapshot." style={{ marginLeft: 5, fontSize: 10, color: 'var(--orange)', cursor: 'default' }}>~</span>}
+                              </td>
                               <td>
                                 <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
                                   <input type="number" className="vol-input" value={volInputs[coin] || ''} onChange={e => setVolInputs(v => ({ ...v, [coin]: e.target.value }))} placeholder={fmtNum(info.vol_used, 4)} step="any" min="0" />
@@ -723,13 +788,21 @@ function LiquidityDetail({ detail: d, threshold, liqDetailVol, setLiqDetailVol, 
         </div>
         <button className="btn btn-ghost btn-sm" onClick={onClose}>&#8592; Back</button>
       </div>
-      <div className="stats-row" style={{ marginBottom: 16 }}>
+      <div className="stats-row" style={{ marginBottom: d.price_normalized ? 8 : 16 }}>
         <div className="stat-card"><div className="stat-label">Best Bid</div><div className="stat-value mono">{fmtNum(d.best_bid, 2)}</div></div>
         <div className="stat-card"><div className="stat-label">Vol Used</div><div className="stat-value mono">{fmtNum(d.vol_used, 6)}</div></div>
         <div className="stat-card"><div className="stat-label">Received (THB)</div><div className="stat-value mono">{fmtNum(d.vol_received, 2)}</div></div>
         <div className="stat-card"><div className="stat-label">Slippage</div><div className={`stat-value mono ${slipClass(d.slippage)}`}>{fmtP(d.slippage)}</div></div>
         <div className="stat-card"><div className="stat-label">Safe Vol ({threshold}%)</div><div className="stat-value mono">{safeText}</div></div>
       </div>
+      {(d.from_cache || d.price_normalized) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: d.from_cache ? 'rgba(34,197,128,.06)' : 'rgba(245,158,11,.07)', border: `1px solid ${d.from_cache ? 'rgba(34,197,128,.35)' : 'rgba(245,158,11,.35)'}`, borderRadius: 7, padding: '7px 12px', marginBottom: 14, fontSize: 12, color: d.from_cache ? 'var(--green)' : 'var(--orange)' }}>
+          {d.from_cache
+            ? <><span style={{ fontWeight: 700 }}>● Live (WebSocket cache)</span><span style={{ color: 'var(--text-3)', fontWeight: 400 }}>Real-time order book · {Math.round((d.cache_age_ms ?? 0) / 1000)}s old</span></>
+            : <><span style={{ fontWeight: 700 }}>~ Prices normalized</span><span style={{ color: 'var(--text-3)', fontWeight: 400 }}>REST snapshot was stale (book: {fmtNum(d.book_best_bid ?? 0, 2)} → ticker: {fmtNum(d.best_bid, 2)}). Prices adjusted — coin quantities reflect cached snapshot.</span></>
+          }
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 14 }}>
         <input type="number" className="vol-input" style={{ width: 120 }} value={liqDetailVol} onChange={e => setLiqDetailVol(e.target.value)} placeholder="Custom vol" step="any" />
         <button className="btn btn-primary btn-sm" onClick={onRecalc}>Recalculate</button>
@@ -905,6 +978,14 @@ function SellAnalysisResult({ result: r, showBook, setShowBook }: {
         <span className={`chip chip-${r.asset.toLowerCase()}`} style={{ fontSize: 13, padding: '5px 12px' }}>{r.asset}</span>
       </div>
 
+      {(r.from_cache || r.price_normalized) && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: r.from_cache ? 'rgba(34,197,128,.06)' : 'rgba(245,158,11,.07)', border: `1px solid ${r.from_cache ? 'rgba(34,197,128,.35)' : 'rgba(245,158,11,.35)'}`, borderRadius: 7, padding: '7px 12px', marginBottom: 14, fontSize: 12, color: r.from_cache ? 'var(--green)' : 'var(--orange)' }}>
+          {r.from_cache
+            ? <><span style={{ fontWeight: 700 }}>● Live (WebSocket cache)</span><span style={{ color: 'var(--text-3)', fontWeight: 400 }}>Real-time order book · {Math.round((r.cache_age_ms ?? 0) / 1000)}s old</span></>
+            : <><span style={{ fontWeight: 700 }}>~ Prices normalized</span><span style={{ color: 'var(--text-3)', fontWeight: 400 }}>REST snapshot was stale (book: {fmtNum(r.book_best_bid ?? 0, 2)} → ticker: {fmtNum(r.best_bid, 2)}). Prices adjusted — coin quantities reflect cached snapshot.</span></>
+          }
+        </div>
+      )}
       <div className="stats-row" style={{ marginBottom: 16 }}>
         <div className="stat-card">
           <div className="stat-label">Holdings</div>

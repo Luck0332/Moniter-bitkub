@@ -1,0 +1,13 @@
+name = "liberix-orderbook-fetcher"
+main = "index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["* * * * *"]
+
+[vars]
+# Copy these from the Cloudflare Pages environment variables:
+# CLOUDFLARE_ACCOUNT_ID = "..."
+# CLOUDFLARE_D1_DATABASE_ID = "..."
+# CLOUDFLARE_API_TOKEN = "..."

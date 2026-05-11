@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getHolding } from '@/lib/holdings';
 import { getActiveLoans } from '@/lib/loans';
-import { fetchOrderBook, fetchPrices } from '@/lib/bitkub';
+import { fetchOrderBook, fetchTicker, normalizeOrderBook } from '@/lib/bitkub';
 import { calculateLiquidity } from '@/lib/calculator';
 import { DEFAULT_DEPTH, DEFAULT_THRESHOLD } from '@/lib/config';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
   const asset = req.nextUrl.searchParams.get('asset')?.toUpperCase();
@@ -13,20 +15,23 @@ export async function GET(req: NextRequest) {
 
   if (!asset) return NextResponse.json({ error: 'asset required' }, { status: 400 });
 
-  const [holding, prices, book, allLoans] = await Promise.all([
+  const [holding, ticker, book, allLoans] = await Promise.all([
     getHolding(asset),
-    fetchPrices(),
+    fetchTicker(),
     fetchOrderBook(`THB_${asset}`),
     getActiveLoans(),
   ]);
 
-  const currentPrice = prices[asset] || 0;
+  const currentPrice = ticker[asset]?.last || 0;
   const holdingAmount = holding?.amount ?? 0;
   const sellAmount = customSell ? Math.min(parseFloat(customSell), holdingAmount) : holdingAmount;
   const holdingsValueThb = holdingAmount * currentPrice;
 
-  // Liquidity calculation for sell amount
-  const calc = calculateLiquidity(book.bids, depth, sellAmount > 0 ? sellAmount : null, threshold);
+  const rawBookBid = book.bids[0]?.price || 0;
+  const priceNormalized = rawBookBid > 0 && currentPrice > 0 && Math.abs(currentPrice - rawBookBid) / rawBookBid >= 0.005;
+  const normalizedBook = normalizeOrderBook(book, currentPrice);
+  const calc = calculateLiquidity(normalizedBook.bids, depth, sellAmount > 0 ? sellAmount : null, threshold);
+  const bestBid = ticker[asset]?.last || calc.best_bid;
 
   // Loan obligations for this asset
   const assetLoans = allLoans.filter(l => l.asset_type === asset);
@@ -48,14 +53,15 @@ export async function GET(req: NextRequest) {
   const surplusThb = receivedThb - loanRepayment;
   const isEnough = receivedThb >= loanRepayment;
 
+  const headers = { 'Cache-Control': 'no-store, no-cache, must-revalidate' };
   return NextResponse.json({
     asset,
     current_price: currentPrice,
     holdings: holdingAmount,
     holdings_value_thb: holdingsValueThb,
     sell_amount: sellAmount,
-    best_bid: calc.best_bid,
-    expected_thb: sellAmount * (calc.best_bid || currentPrice),
+    best_bid: bestBid,
+    expected_thb: sellAmount * (bestBid || currentPrice),
     received_thb: receivedThb,
     slippage_pct: Math.round(slippagePct * 1000) / 1000,
     safety: calc.safety,
@@ -66,10 +72,14 @@ export async function GET(req: NextRequest) {
     loan_repayment: Math.round(loanRepayment * 100) / 100,
     is_enough: isEnough,
     surplus_thb: Math.round(surplusThb * 100) / 100,
+    price_normalized: priceNormalized,
+    book_best_bid: rawBookBid,
+    from_cache: book.from_cache ?? false,
+    cache_age_ms: book.cache_age_ms ?? null,
     levels: calc.levels.map(l => ({
       amount: l.amount, price: l.price, bid_size: l.bid_size,
       accru_amount: l.accru_amount, amount_match: l.amount_match,
       sales_matched: l.sales_matched, accru_matched: l.accru_matched,
     })),
-  });
+  }, { headers });
 }

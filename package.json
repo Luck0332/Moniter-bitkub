@@ -8,7 +8,9 @@
     "start": "next start",
     "build:cf": "opennextjs-cloudflare build && node scripts/cf-dist.mjs",
     "deploy": "npm run build:cf && wrangler pages deploy .open-next/dist --project-name liberix-monitor",
-    "db:migrate": "node scripts/migrate.mjs"
+    "db:migrate": "node scripts/migrate.mjs",
+    "deploy:fetcher": "cd workers/orderbook-fetcher && npx wrangler deploy",
+    "fetcher:status": "cd workers/orderbook-fetcher && npx wrangler tail --format pretty"
   },
   "dependencies": {
     "next": "^15.3.0",

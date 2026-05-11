@@ -47,7 +47,7 @@ export default function ViewerPage() {
 
   useEffect(() => {
     fetchPricesData();
-    const iv = setInterval(fetchPricesData, 60000);
+    const iv = setInterval(fetchPricesData, 15000);
     return () => clearInterval(iv);
   }, [fetchPricesData]);
 
@@ -55,10 +55,10 @@ export default function ViewerPage() {
     if (!lastPriceFetch) { setPriceStatus('loading...'); return; }
     const update = () => {
       const s = Math.round((Date.now() - lastPriceFetch.getTime()) / 1000);
-      setPriceStatus(s < 60 ? 'just now' : Math.floor(s / 60) + 'm ago');
+      setPriceStatus(s < 15 ? 'just now' : s < 60 ? s + 's ago' : Math.floor(s / 60) + 'm ago');
     };
     update();
-    const iv = setInterval(update, 30000);
+    const iv = setInterval(update, 5000);
     return () => clearInterval(iv);
   }, [lastPriceFetch]);
 
