@@ -1,5 +1,5 @@
 import { BITKUB_API, ORDER_BOOK_LIMIT, COINS, ASSET_TYPES } from './config';
-import { getCachedOrderBook } from './orderbook-cache';
+import { getCachedOrderBook, getBulkCachedOrderBooks } from './orderbook-cache';
 
 interface Bid { price: number; amount: number; volume_thb: number }
 interface Ask { price: number; amount: number; volume_thb: number }
@@ -43,12 +43,40 @@ export function normalizeOrderBook(book: OrderBook, currentPrice: number): Order
   };
 }
 
-export async function fetchAllOrderBooks(symbols = COINS): Promise<Record<string, OrderBook>> {
-  const results: Record<string, OrderBook> = {};
-  await Promise.all(symbols.map(async (sym) => {
-    try { results[sym] = await fetchOrderBook(sym); }
-    catch (e) { results[sym] = { bids: [], asks: [], error: (e as Error).message }; }
-  }));
+export async function fetchAllOrderBooks(symbols = COINS): Promise<Record<string, OrderBook & { from_cache?: boolean; cache_age_ms?: number }>> {
+  // Single D1 query for all cached books instead of N parallel queries
+  const bulkCache = await getBulkCachedOrderBooks(symbols);
+
+  // Only fall back to REST for symbols missing from cache
+  const missing = symbols.filter(sym => !bulkCache[sym]);
+  const restResults: Record<string, OrderBook> = {};
+  if (missing.length) {
+    await Promise.all(missing.map(async (sym) => {
+      try {
+        const url = `${BITKUB_API}/market/books?sym=${sym}&lmt=${ORDER_BOOK_LIMIT}&_t=${Date.now()}`;
+        const resp = await fetch(url, noCacheInit);
+        if (!resp.ok) throw new Error(`Bitkub API error: ${resp.status}`);
+        const data = await resp.json();
+        if (data.error !== 0) throw new Error(`Bitkub error: ${JSON.stringify(data)}`);
+        const result = data.result;
+        restResults[sym] = {
+          bids: (result.bids || []).map((e: number[]) => ({ price: Number(e[3]), amount: Number(e[4]), volume_thb: Number(e[2]) })),
+          asks: (result.asks || []).map((e: number[]) => ({ price: Number(e[3]), amount: Number(e[4]), volume_thb: Number(e[2]) })),
+        };
+      } catch (e) {
+        restResults[sym] = { bids: [], asks: [], error: (e as Error).message };
+      }
+    }));
+  }
+
+  const results: Record<string, OrderBook & { from_cache?: boolean; cache_age_ms?: number }> = {};
+  for (const sym of symbols) {
+    if (bulkCache[sym]) {
+      results[sym] = { ...bulkCache[sym].book, from_cache: true, cache_age_ms: bulkCache[sym].age_ms };
+    } else {
+      results[sym] = restResults[sym] || { bids: [], asks: [], error: 'not found' };
+    }
+  }
   return results;
 }
 
