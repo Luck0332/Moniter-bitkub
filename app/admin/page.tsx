@@ -117,7 +117,10 @@ export default function AdminPage() {
     liqStateRef.current = { active: page === 'liquidity' && !!liqData, depth, threshold };
   }, [page, liqData, depth, threshold]);
 
-  // Pre-fill volInputs with real vol_used on first data load (coins not yet touched by user)
+  // Pre-fill volInputs on first data load, then auto-sync from real vol_used every 5 minutes
+  const liqDataRef = useRef<LiqSummary | null>(null);
+  useEffect(() => { liqDataRef.current = liqData; }, [liqData]);
+
   useEffect(() => {
     if (!liqData) return;
     setVolInputs(prev => {
@@ -130,6 +133,20 @@ export default function AdminPage() {
       return updated;
     });
   }, [liqData]);
+
+  // Every 5 minutes: reset all vol inputs to latest real vol_used from API
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const data = liqDataRef.current;
+      if (!data) return;
+      const updated: Record<string, string> = {};
+      for (const [coin, info] of Object.entries(data.coins)) {
+        if (!info.error && info.vol_used > 0) updated[coin] = String(info.vol_used);
+      }
+      setVolInputs(updated);
+    }, 5 * 60 * 1000);
+    return () => clearInterval(iv);
+  }, []);
 
   const liqDetailRef = useRef<{ coin: string | null; vol: string; depth: number; threshold: number; active: boolean }>({ coin: null, vol: '', depth: 90, threshold: -3.5, active: false });
   useEffect(() => {
