@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
     const rawBookBid = book.bids[0]?.price || 0;
     const priceNormalized = rawBookBid > 0 && currentPrice > 0 && Math.abs(currentPrice - rawBookBid) / rawBookBid >= 0.005;
     const normalizedBook = normalizeOrderBook(book, currentPrice);
-    const calc = calculateLiquidity(normalizedBook.bids, depth, null, threshold);
+    const baseVol = ticker[coin]?.baseVolume || 0;
+    const calc = calculateLiquidity(normalizedBook.bids, depth, baseVol > 0 ? baseVol : null, threshold);
     results[coin] = {
       best_bid: currentPrice,
       total_amount: calc.total_amount,
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
       slippage_pct: calc.slippage * 100,
       slippage_display: calc.slippage_pct,
       vol_used: calc.vol_used,
-      base_volume_24h: ticker[coin]?.baseVolume || 0,
+      base_volume_24h: baseVol,
       threshold: threshold * 100,
       threshold_breached: calc.threshold_breached,
       safety: { safe_vol: calc.safety.safe_vol, safe_thb: calc.safety.safe_thb, is_safe: calc.safety.is_safe },
