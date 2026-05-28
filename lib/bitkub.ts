@@ -80,15 +80,19 @@ export async function fetchAllOrderBooks(symbols = COINS): Promise<Record<string
   return results;
 }
 
-export async function fetchTicker(): Promise<Record<string, { last: number; highestBid: number }>> {
+export async function fetchTicker(): Promise<Record<string, { last: number; highestBid: number; baseVolume: number }>> {
   const url = `${BITKUB_API}/market/ticker?_t=${Date.now()}`;
   const resp = await fetch(url, noCacheInit);
   if (!resp.ok) throw new Error('Ticker fetch failed');
   const data = await resp.json();
-  const result: Record<string, { last: number; highestBid: number }> = {};
+  const result: Record<string, { last: number; highestBid: number; baseVolume: number }> = {};
   for (const asset of ASSET_TYPES) {
     const key = `THB_${asset}`;
-    result[asset] = { last: data[key]?.last || 0, highestBid: data[key]?.highestBid || 0 };
+    result[asset] = {
+      last: data[key]?.last || 0,
+      highestBid: data[key]?.highestBid || 0,
+      baseVolume: data[key]?.baseVolume || 0,
+    };
   }
   return result;
 }

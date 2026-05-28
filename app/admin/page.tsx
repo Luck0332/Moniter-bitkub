@@ -17,7 +17,7 @@ interface LoanForm {
 }
 interface CoinSummary {
   best_bid: number; total_amount: number; liquidity_depth: number; slippage_pct: number;
-  vol_used: number; threshold: number; threshold_breached: boolean; error?: string;
+  vol_used: number; base_volume_24h: number; threshold: number; threshold_breached: boolean; error?: string;
   safety: { safe_vol: number; safe_thb: number; is_safe: boolean };
   price_normalized?: boolean;
 }
@@ -117,7 +117,7 @@ export default function AdminPage() {
     liqStateRef.current = { active: page === 'liquidity' && !!liqData, depth, threshold };
   }, [page, liqData, depth, threshold]);
 
-  // Pre-fill volInputs on first data load, then auto-sync from real vol_used every 5 minutes
+  // Pre-fill volInputs with 24h base volume on first load, then auto-sync every 5 minutes
   const liqDataRef = useRef<LiqSummary | null>(null);
   useEffect(() => { liqDataRef.current = liqData; }, [liqData]);
 
@@ -126,22 +126,22 @@ export default function AdminPage() {
     setVolInputs(prev => {
       const updated = { ...prev };
       for (const [coin, info] of Object.entries(liqData.coins)) {
-        if (!(coin in updated) && !info.error && info.vol_used > 0) {
-          updated[coin] = String(info.vol_used);
+        if (!(coin in updated) && !info.error && info.base_volume_24h > 0) {
+          updated[coin] = String(info.base_volume_24h);
         }
       }
       return updated;
     });
   }, [liqData]);
 
-  // Every 5 minutes: reset all vol inputs to latest real vol_used from API
+  // Every 5 minutes: reset all vol inputs to latest 24h base volume from ticker
   useEffect(() => {
     const iv = setInterval(() => {
       const data = liqDataRef.current;
       if (!data) return;
       const updated: Record<string, string> = {};
       for (const [coin, info] of Object.entries(data.coins)) {
-        if (!info.error && info.vol_used > 0) updated[coin] = String(info.vol_used);
+        if (!info.error && info.base_volume_24h > 0) updated[coin] = String(info.base_volume_24h);
       }
       setVolInputs(updated);
     }, 5 * 60 * 1000);

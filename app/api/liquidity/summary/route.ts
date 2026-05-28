@@ -27,6 +27,7 @@ export async function GET(req: NextRequest) {
       slippage_pct: calc.slippage * 100,
       slippage_display: calc.slippage_pct,
       vol_used: calc.vol_used,
+      base_volume_24h: ticker[coin]?.baseVolume || 0,
       threshold: threshold * 100,
       threshold_breached: calc.threshold_breached,
       safety: { safe_vol: calc.safety.safe_vol, safe_thb: calc.safety.safe_thb, is_safe: calc.safety.is_safe },
