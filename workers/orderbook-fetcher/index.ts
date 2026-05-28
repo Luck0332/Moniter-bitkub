@@ -9,7 +9,7 @@ const PAIRING_IDS: Record<string, number> = {
 };
 
 const COINS = Object.keys(PAIRING_IDS);
-const ORDER_BOOK_LIMIT = 200;
+// No limit — store the full order book snapshot from Bitkub WebSocket
 const WS_TIMEOUT_MS = 20_000;
 const BATCH_SIZE = 4;
 
@@ -50,8 +50,7 @@ function parseBitkubWsEntry(raw: number[][]): Bid[] {
       volume_thb: Number(b[0]),  // pre-computed volume
     }))
     .filter((b) => b.price > 0 && b.amount > 0)
-    .sort((a, b) => b.price - a.price) // descending price (best bid first)
-    .slice(0, ORDER_BOOK_LIMIT);
+    .sort((a, b) => b.price - a.price); // descending price (best bid first) — full book, no slice
 }
 
 async function fetchViaWebSocket(symbol: string): Promise<{ bids: Bid[]; result: string }> {

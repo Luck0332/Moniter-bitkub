@@ -1,5 +1,5 @@
 export const BITKUB_API = 'https://api.bitkub.com/api';
-export const ORDER_BOOK_LIMIT = 200;
+export const ORDER_BOOK_LIMIT = 2000; // REST fallback limit (WebSocket stores full book)
 
 export const COINS = [
   'THB_BTC','THB_ETH','THB_SOL','THB_BNB','THB_ADA','THB_DOT','THB_POL',
