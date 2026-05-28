@@ -117,6 +117,20 @@ export default function AdminPage() {
     liqStateRef.current = { active: page === 'liquidity' && !!liqData, depth, threshold };
   }, [page, liqData, depth, threshold]);
 
+  // Pre-fill volInputs with real vol_used on first data load (coins not yet touched by user)
+  useEffect(() => {
+    if (!liqData) return;
+    setVolInputs(prev => {
+      const updated = { ...prev };
+      for (const [coin, info] of Object.entries(liqData.coins)) {
+        if (!(coin in updated) && !info.error && info.vol_used > 0) {
+          updated[coin] = String(info.vol_used);
+        }
+      }
+      return updated;
+    });
+  }, [liqData]);
+
   const liqDetailRef = useRef<{ coin: string | null; vol: string; depth: number; threshold: number; active: boolean }>({ coin: null, vol: '', depth: 90, threshold: -3.5, active: false });
   useEffect(() => {
     liqDetailRef.current = { coin: liqCoin, vol: liqDetailVol, depth, threshold, active: !!liqDetail };
