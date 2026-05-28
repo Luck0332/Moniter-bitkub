@@ -366,6 +366,11 @@ export default function AdminPage() {
       const d = await r.json();
       setLiqData(d);
       setLiqLastUpdate(new Date(d.timestamp).toLocaleTimeString());
+      const updated: Record<string, string> = {};
+      for (const [coin, info] of Object.entries(d.coins as Record<string, CoinSummary>)) {
+        if (!info.error && info.base_volume_24h > 0) updated[coin] = String(info.base_volume_24h);
+      }
+      setVolInputs(updated);
     } catch { /* silent */ }
     setLiqLoading(false);
   }
