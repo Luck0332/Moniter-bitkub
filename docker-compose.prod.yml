@@ -1,0 +1,22 @@
+services:
+  app:
+    image: ${GHCR_IMAGE}
+    container_name: moniter-bitkub-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOSTNAME: "0.0.0.0"
+      PORT: 3000
+    networks:
+      - monitor_internal
+      - web
+
+volumes:
+  uploads_data:
+
+networks:
+  monitor_internal:
+    driver: bridge
+  web:
+    external: true
+    name: app_app-net

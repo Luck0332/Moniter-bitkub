@@ -1,0 +1,117 @@
+name: CI / CD
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # JOB 1: CI — typecheck · build
+  # ──────────────────────────────────────────────────────────────────────────
+  ci:
+    name: Typecheck & Build
+    runs-on: ubuntu-latest
+
+    env:
+      CLOUDFLARE_ACCOUNT_ID: ci-placeholder
+      CLOUDFLARE_D1_DATABASE_ID: ci-placeholder
+      CLOUDFLARE_API_TOKEN: ci-placeholder
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - run: npm ci
+      - run: npx tsc --noEmit
+      - run: npm run build
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # JOB 2: CD — build image → push GHCR → deploy via SSH
+  # รันเฉพาะตอน push ไป main เท่านั้น
+  # ──────────────────────────────────────────────────────────────────────────
+  cd:
+    name: Build, Push & Deploy
+    runs-on: ubuntu-latest
+    needs: ci
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set lowercase image name
+        id: image
+        run: |
+          echo "name=$(echo '${{ env.REGISTRY }}/${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.image.outputs.name }}
+          tags: |
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ steps.image.outputs.name }}:buildcache
+          cache-to: type=registry,ref=${{ steps.image.outputs.name }}:buildcache,mode=max
+
+      - name: Deploy to Server via SSH
+        env:
+          SSH_KEY_B64: ${{ secrets.SSH_PRIVATE_KEY }}
+          DEPLOY_IMAGE: ${{ steps.image.outputs.name }}:latest
+          GHCR_PAT: ${{ secrets.GHCR_PAT }}
+          DEPLOY_ACTOR: ${{ github.actor }}
+          DEPLOY_SHA: ${{ github.sha }}
+          DEPLOY_HOST: ${{ secrets.SERVER_HOST }}
+          DEPLOY_USER: ${{ secrets.SERVER_USER }}
+        run: |
+          echo "$SSH_KEY_B64" | base64 -d > /tmp/deploy_key
+          chmod 600 /tmp/deploy_key
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+          scp -i /tmp/deploy_key -o StrictHostKeyChecking=accept-new \
+            docker-compose.prod.yml \
+            "$DEPLOY_USER@$DEPLOY_HOST:/opt/projects/moniter-bitkub/docker-compose.prod.yml"
+
+          ssh -i /tmp/deploy_key \
+            -o StrictHostKeyChecking=accept-new \
+            -o PasswordAuthentication=no \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "set -e
+             echo '$GHCR_PAT' | docker login ghcr.io -u '$DEPLOY_ACTOR' --password-stdin
+             docker pull '$DEPLOY_IMAGE'
+             cd /opt/projects/moniter-bitkub
+             GHCR_IMAGE='$DEPLOY_IMAGE' docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate --pull never app
+             docker image prune -f
+             echo '✓ Deployed SHA: $DEPLOY_SHA'"
