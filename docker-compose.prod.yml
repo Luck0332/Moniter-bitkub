@@ -1,7 +1,7 @@
 services:
   app:
     image: ${GHCR_IMAGE}
-    container_name: moniter-bitkub-app
+    container_name: liberix-monitor-app
     restart: unless-stopped
     env_file: .env
     environment:
@@ -21,12 +21,12 @@ services:
   # ── Cron: fetch Bitkub order books every minute ───────────────────────────
   orderbook-cron:
     image: curlimages/curl:latest
-    container_name: moniter-bitkub-cron
+    container_name: liberix-monitor-cron
     restart: unless-stopped
     env_file: .env
     command: >
       sh -c "while true;
-             do curl -s 'http://moniter-bitkub-app:3000/api/cron/orderbook-fetch?secret=$$CRON_SECRET';
+             do curl -s 'http://liberix-monitor-app:3000/api/cron/orderbook-fetch?secret=$$CRON_SECRET';
              echo '';
              sleep 60;
              done"

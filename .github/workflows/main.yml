@@ -117,7 +117,7 @@ jobs:
 
           scp -i /tmp/deploy_key -o StrictHostKeyChecking=accept-new \
             docker-compose.prod.yml \
-            "$DEPLOY_USER@$DEPLOY_HOST:/opt/projects/moniter-bitkub/docker-compose.prod.yml"
+            "$DEPLOY_USER@$DEPLOY_HOST:/opt/projects/liberix-monitor/docker-compose.prod.yml"
 
           ssh -i /tmp/deploy_key \
             -o StrictHostKeyChecking=accept-new \
@@ -126,7 +126,7 @@ jobs:
             "set -e
              echo '$GHCR_PAT' | docker login ghcr.io -u '$DEPLOY_ACTOR' --password-stdin
              docker pull '$DEPLOY_IMAGE'
-             cd /opt/projects/moniter-bitkub
+             cd /opt/projects/liberix-monitor
              GHCR_IMAGE='$DEPLOY_IMAGE' docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate --pull never app orderbook-cron
              docker image prune -f
              echo '✓ Deployed SHA: $DEPLOY_SHA'"
