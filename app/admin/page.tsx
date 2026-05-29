@@ -2,6 +2,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 
+const _b = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
+
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Loan {
   id: string; asset_type: string; collateral_amount: number;
@@ -164,7 +166,7 @@ export default function AdminPage() {
 
   const fetchPricesData = useCallback(async () => {
     try {
-      const r = await fetch(`/api/prices?_t=${Date.now()}`);
+      const r = await fetch(_b + `/api/prices?_t=${Date.now()}`);
       const d = await r.json();
       setPrices(d);
       setLastPriceFetch(new Date());
@@ -195,7 +197,7 @@ export default function AdminPage() {
     if (aActive && asset) {
       (async () => {
         try {
-          let url = `/api/holdings/analyze?asset=${asset}&threshold=${aThresh / 100}&_t=${Date.now()}`;
+          let url = _b + `/api/holdings/analyze?asset=${asset}&threshold=${aThresh / 100}&_t=${Date.now()}`;
           if (sellAmt) url += `&sell_amount=${sellAmt}`;
           const r = await fetch(url);
           const d = await r.json();
@@ -207,7 +209,7 @@ export default function AdminPage() {
     if (lActive) {
       (async () => {
         try {
-          const r = await fetch(`/api/liquidity/summary?depth=${lDepth / 100}&threshold=${lThresh / 100}&_t=${Date.now()}`);
+          const r = await fetch(_b + `/api/liquidity/summary?depth=${lDepth / 100}&threshold=${lThresh / 100}&_t=${Date.now()}`);
           const d = await r.json();
           setLiqData(d);
           setLiqLastUpdate(new Date(d.timestamp).toLocaleTimeString());
@@ -218,7 +220,7 @@ export default function AdminPage() {
     if (dActive && dCoin) {
       (async () => {
         try {
-          let url = `/api/liquidity/orderbook/${dCoin}?depth=${dDepth / 100}&threshold=${dThresh / 100}&_t=${Date.now()}`;
+          let url = _b + `/api/liquidity/orderbook/${dCoin}?depth=${dDepth / 100}&threshold=${dThresh / 100}&_t=${Date.now()}`;
           const v = parseFloat(dVol);
           if (v > 0) url += `&custom_vol=${v}`;
           const r = await fetch(url);
@@ -236,7 +238,7 @@ export default function AdminPage() {
 
   async function attemptUnlock() {
     try {
-      const r = await fetch('/api/admin/unlock', {
+      const r = await fetch(_b + '/api/admin/unlock', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ passcode }),
@@ -268,14 +270,14 @@ export default function AdminPage() {
   }
 
   async function loadActiveLoans() {
-    try { const r = await fetch('/api/loans?status=active'); const d = await r.json(); setLoans(d.loans || []); } catch { /* silent */ }
+    try { const r = await fetch(_b + '/api/loans?status=active'); const d = await r.json(); setLoans(d.loans || []); } catch { /* silent */ }
   }
   async function loadClosedLoans() {
-    try { const r = await fetch('/api/loans?status=closed'); const d = await r.json(); setClosedLoans(d.loans || []); } catch { /* silent */ }
+    try { const r = await fetch(_b + '/api/loans?status=closed'); const d = await r.json(); setClosedLoans(d.loans || []); } catch { /* silent */ }
   }
 
   async function openModal() {
-    try { const r = await fetch('/api/loans/config'); const c = await r.json(); setAssetTypes(c.asset_types || []); setLtvOptions(c.ltv_options || []); } catch { /* use existing */ }
+    try { const r = await fetch(_b + '/api/loans/config'); const c = await r.json(); setAssetTypes(c.asset_types || []); setLtvOptions(c.ltv_options || []); } catch { /* use existing */ }
     setForm(emptyForm());
     setShowModal(true);
   }
@@ -299,7 +301,7 @@ export default function AdminPage() {
   async function createLoan() {
     if (!form.id || !form.asset_type) { alert('Fill Loan ID and Asset Type'); return; }
     try {
-      const r = await fetch('/api/loans', {
+      const r = await fetch(_b + '/api/loans', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: form.id, asset_type: form.asset_type,
@@ -321,19 +323,19 @@ export default function AdminPage() {
   }
 
   async function updateEndDate(id: string, value: string) {
-    await fetch('/api/loans/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ end_date: value || null }) });
+    await fetch(_b + '/api/loans/' + id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ end_date: value || null }) });
     loadActiveLoans();
   }
 
   async function deleteLoan(id: string) {
     if (!confirm('Delete loan ' + id + '?')) return;
-    await fetch('/api/loans/' + id, { method: 'DELETE' });
+    await fetch(_b + '/api/loans/' + id, { method: 'DELETE' });
     loadActiveLoans();
   }
 
   async function loadHoldings() {
     try {
-      const r = await fetch('/api/holdings');
+      const r = await fetch(_b + '/api/holdings');
       const d = await r.json();
       setHoldings(d.holdings || []);
       const inputs: Record<string, string> = {};
@@ -345,7 +347,7 @@ export default function AdminPage() {
   async function saveHoldings() {
     setHoldingsSaving(true); setHoldingsSaved(false);
     const entries = Object.entries(holdingsInputs).map(([asset_type, v]) => ({ asset_type, amount: parseFloat(v) || 0 })).filter(e => e.amount > 0);
-    await fetch('/api/holdings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holdings: entries }) });
+    await fetch(_b + '/api/holdings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ holdings: entries }) });
     await loadHoldings();
     setHoldingsSaving(false); setHoldingsSaved(true);
     setTimeout(() => setHoldingsSaved(false), 3000);
@@ -355,7 +357,7 @@ export default function AdminPage() {
     if (!analyzeAsset) { setAnalyzeError('Select an asset.'); return; }
     setAnalyzeLoading(true); setAnalyzeError(''); setAnalyzeResult(null); setAnalyzeShowBook(false);
     try {
-      let url = `/api/holdings/analyze?asset=${analyzeAsset}&threshold=${analyzeThreshold / 100}`;
+      let url = _b + `/api/holdings/analyze?asset=${analyzeAsset}&threshold=${analyzeThreshold / 100}`;
       if (analyzeSellAmt) url += `&sell_amount=${analyzeSellAmt}`;
       const r = await fetch(url);
       const d = await r.json();
@@ -368,7 +370,7 @@ export default function AdminPage() {
   async function fetchLiqSummary() {
     setLiqLoading(true);
     try {
-      const r = await fetch(`/api/liquidity/summary?depth=${depth / 100}&threshold=${threshold / 100}`);
+      const r = await fetch(_b + `/api/liquidity/summary?depth=${depth / 100}&threshold=${threshold / 100}`);
       const d = await r.json();
       setLiqData(d);
       setLiqLastUpdate(new Date(d.timestamp).toLocaleTimeString());
@@ -384,7 +386,7 @@ export default function AdminPage() {
   async function recalcCoin(coin: string) {
     const v = parseFloat(volInputs[coin] || '');
     if (!v || v <= 0) return;
-    const r = await fetch(`/api/liquidity/orderbook/${coin}?depth=${depth / 100}&custom_vol=${v}&threshold=${threshold / 100}`);
+    const r = await fetch(_b + `/api/liquidity/orderbook/${coin}?depth=${depth / 100}&custom_vol=${v}&threshold=${threshold / 100}`);
     const d = await r.json();
     setLiqData(prev => prev ? { ...prev, coins: { ...prev.coins, [coin]: { ...prev.coins[coin], liquidity_depth: d.vol_received, slippage_pct: d.slippage, safety: d.safety } } } : prev);
   }
@@ -392,7 +394,7 @@ export default function AdminPage() {
   async function showLiqDetail(coin: string) {
     setLiqCoin(coin);
     const v = parseFloat(volInputs[coin] || '');
-    let url = `/api/liquidity/orderbook/${coin}?depth=${depth / 100}&threshold=${threshold / 100}`;
+    let url = _b + `/api/liquidity/orderbook/${coin}?depth=${depth / 100}&threshold=${threshold / 100}`;
     if (v > 0) { url += `&custom_vol=${v}`; setLiqDetailVol(String(v)); } else { setLiqDetailVol(''); }
     const r = await fetch(url);
     setLiqDetail(await r.json());
@@ -401,7 +403,7 @@ export default function AdminPage() {
   async function recalcDetail() {
     if (!liqCoin) return;
     const v = parseFloat(liqDetailVol);
-    let url = `/api/liquidity/orderbook/${liqCoin}?depth=${depth / 100}&threshold=${threshold / 100}`;
+    let url = _b + `/api/liquidity/orderbook/${liqCoin}?depth=${depth / 100}&threshold=${threshold / 100}`;
     if (v > 0) url += `&custom_vol=${v}`;
     const r = await fetch(url);
     setLiqDetail(await r.json());

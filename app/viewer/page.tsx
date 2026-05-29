@@ -1,5 +1,7 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+
+const _b = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 import Link from 'next/link';
 
 interface LoanData {
@@ -38,7 +40,7 @@ export default function ViewerPage() {
 
   const fetchPricesData = useCallback(async () => {
     try {
-      const r = await fetch('/api/prices');
+      const r = await fetch(_b + '/api/prices');
       const d = await r.json();
       setPrices(d);
       setLastPriceFetch(new Date());
@@ -67,7 +69,7 @@ export default function ViewerPage() {
     if (!id) { setViewError('Enter a Loan ID.'); return; }
     setViewError('');
     try {
-      const r = await fetch('/api/loans/' + id);
+      const r = await fetch(_b + '/api/loans/' + id);
       const d = await r.json();
       if (d.error) { setViewError('No loan found with ID "' + id + '".'); return; }
       setViewLoan(d);
@@ -79,7 +81,7 @@ export default function ViewerPage() {
     if (!id) { setEditError('Enter a Loan ID.'); return; }
     setEditError('');
     try {
-      const r = await fetch('/api/loans/' + id);
+      const r = await fetch(_b + '/api/loans/' + id);
       const d = await r.json();
       if (d.error) { setEditError('No loan found with ID "' + id + '".'); return; }
       setEditLoan(d);
@@ -96,7 +98,7 @@ export default function ViewerPage() {
     if (isNaN(daily_interest_rate) || daily_interest_rate < 0) { setSaveError('Daily interest rate must be 0 or greater.'); return; }
     setSaving(true); setSaveError(''); setSaveOk(false);
     try {
-      const r = await fetch('/api/loans/' + editLoan.id, {
+      const r = await fetch(_b + '/api/loans/' + editLoan.id, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ collateral_amount, daily_interest_rate, start_date: editForm.start_date || null, end_date: editForm.end_date || null, status: editForm.status }),
       });
