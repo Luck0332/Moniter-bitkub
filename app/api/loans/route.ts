@@ -13,11 +13,20 @@ export async function GET(req: NextRequest) {
   if (status === 'closed') loans = await getClosedLoans();
   else if (status === 'all') loans = await getAllLoans();
   else loans = await getActiveLoans();
-  return NextResponse.json({ loans: await enrichLoans(loans) });
+  try {
+    return NextResponse.json({ loans: await enrichLoans(loans) });
+  } catch {
+    // Price fetch failed — return loans with price = 0 rather than 500
+    return NextResponse.json({ loans: loans.map(l => calculateLoanMetrics(l, 0)) });
+  }
 }
 
 export async function POST(req: NextRequest) {
-  const data = await req.json();
-  const loan = await createLoan(data);
-  return NextResponse.json({ ok: true, loan });
+  try {
+    const data = await req.json();
+    const loan = await createLoan(data);
+    return NextResponse.json({ ok: true, loan });
+  } catch (e) {
+    return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 400 });
+  }
 }

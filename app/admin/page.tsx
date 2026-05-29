@@ -298,20 +298,26 @@ export default function AdminPage() {
 
   async function createLoan() {
     if (!form.id || !form.asset_type) { alert('Fill Loan ID and Asset Type'); return; }
-    await fetch('/api/loans', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: form.id, asset_type: form.asset_type,
-        collateral_amount: parseFloat(form.collateral_amount) || 0,
-        initial_collateral_value: parseFloat(form.initial_collateral_value) || 0,
-        loan_amount: parseFloat(form.loan_amount) || 0,
-        ltv_ratio: parseInt(form.ltv_ratio) || 0,
-        daily_interest_rate: parseFloat(form.daily_interest_rate) || 0,
-        start_date: form.start_date, end_date: form.end_date || null, status: form.status,
-      }),
-    });
-    setShowModal(false);
-    loadActiveLoans();
+    try {
+      const r = await fetch('/api/loans', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: form.id, asset_type: form.asset_type,
+          collateral_amount: parseFloat(form.collateral_amount) || 0,
+          initial_collateral_value: parseFloat(form.initial_collateral_value) || 0,
+          loan_amount: parseFloat(form.loan_amount) || 0,
+          ltv_ratio: parseInt(form.ltv_ratio) || 0,
+          daily_interest_rate: parseFloat(form.daily_interest_rate) || 0,
+          start_date: form.start_date, end_date: form.end_date || null, status: form.status,
+        }),
+      });
+      const d = await r.json();
+      if (!d.ok) { alert('Error: ' + (d.error || 'Failed to create loan')); return; }
+      setShowModal(false);
+      loadActiveLoans();
+    } catch (e) {
+      alert('Error: ' + (e as Error).message);
+    }
   }
 
   async function updateEndDate(id: string, value: string) {
