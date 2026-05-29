@@ -127,6 +127,6 @@ jobs:
              echo '$GHCR_PAT' | docker login ghcr.io -u '$DEPLOY_ACTOR' --password-stdin
              docker pull '$DEPLOY_IMAGE'
              cd /opt/projects/liberix-monitor
-             GHCR_IMAGE='$DEPLOY_IMAGE' docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate --pull never app orderbook-cron
+             GHCR_IMAGE='$DEPLOY_IMAGE' docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate --pull missing app orderbook-cron
              docker image prune -f
              echo '✓ Deployed SHA: $DEPLOY_SHA'"
