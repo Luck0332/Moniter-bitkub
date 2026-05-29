@@ -18,10 +18,24 @@ jobs:
     name: Typecheck & Build
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-bookworm
+        env:
+          POSTGRES_DB: liberix_monitor_test
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_pass
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     env:
-      CLOUDFLARE_ACCOUNT_ID: ci-placeholder
-      CLOUDFLARE_D1_DATABASE_ID: ci-placeholder
-      CLOUDFLARE_API_TOKEN: ci-placeholder
+      DATABASE_URL: postgresql://test_user:test_pass@localhost:5432/liberix_monitor_test
+      CRON_SECRET: ci-secret
 
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +46,7 @@ jobs:
           cache: "npm"
 
       - run: npm ci
+      - run: node scripts/migrate.mjs
       - run: npx tsc --noEmit
       - run: npm run build
 
@@ -112,6 +127,6 @@ jobs:
              echo '$GHCR_PAT' | docker login ghcr.io -u '$DEPLOY_ACTOR' --password-stdin
              docker pull '$DEPLOY_IMAGE'
              cd /opt/projects/moniter-bitkub
-             GHCR_IMAGE='$DEPLOY_IMAGE' docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate --pull never app
+             GHCR_IMAGE='$DEPLOY_IMAGE' docker compose -f docker-compose.prod.yml up -d --no-deps --force-recreate --pull never app orderbook-cron
              docker image prune -f
              echo '✓ Deployed SHA: $DEPLOY_SHA'"

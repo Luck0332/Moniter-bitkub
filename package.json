@@ -14,12 +14,14 @@
   },
   "dependencies": {
     "next": "^15.3.0",
+    "pg": "^8.21.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@opennextjs/cloudflare": "^1.19.6",
     "@types/node": "^22.0.0",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "typescript": "^5.8.0",

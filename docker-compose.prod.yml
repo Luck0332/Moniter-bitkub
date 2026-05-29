@@ -1,4 +1,22 @@
 services:
+  db:
+    image: postgres:16-bookworm
+    container_name: moniter-bitkub-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-liberix_monitor}
+      POSTGRES_USER: ${POSTGRES_USER:-liberix}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - monitor_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-liberix} -d ${POSTGRES_DB:-liberix_monitor}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - monitor_internal
+
   app:
     image: ${GHCR_IMAGE}
     container_name: moniter-bitkub-app
@@ -7,12 +25,39 @@ services:
     environment:
       HOSTNAME: "0.0.0.0"
       PORT: 3000
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/prices || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     networks:
       - monitor_internal
       - web
 
+  # ── Cron: fetch Bitkub order books every minute ───────────────────────────
+  orderbook-cron:
+    image: curlimages/curl:latest
+    container_name: moniter-bitkub-cron
+    restart: unless-stopped
+    env_file: .env
+    command: >
+      sh -c "while true;
+             do wget -qO- \"http://app:3000/api/cron/orderbook-fetch?secret=$$CRON_SECRET\";
+             echo '';
+             sleep 60;
+             done"
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - monitor_internal
+
 volumes:
-  uploads_data:
+  monitor_db_data:
 
 networks:
   monitor_internal:

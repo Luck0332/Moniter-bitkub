@@ -28,7 +28,12 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Migration script + SQL files
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/migrate.mjs ./scripts/migrate.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/migrations ./migrations
+
 USER nextjs
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+# Run migrations then start server
+CMD ["sh", "-c", "node scripts/migrate.mjs && node server.js"]
