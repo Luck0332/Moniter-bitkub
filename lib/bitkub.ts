@@ -13,10 +13,16 @@ const noCacheInit = {
   cf: { cacheTtl: 0, cacheEverything: false },
 } as RequestInit;
 
-export async function fetchOrderBook(symbol: string, limit = ORDER_BOOK_LIMIT): Promise<OrderBook & { from_cache?: boolean; cache_age_ms?: number }> {
+export async function fetchOrderBook(
+  symbol: string,
+  limit = ORDER_BOOK_LIMIT,
+  options: { bypassCache?: boolean } = {},
+): Promise<OrderBook & { from_cache?: boolean; cache_age_ms?: number }> {
   // Try WebSocket-populated D1 cache first (real-time data from cron worker)
-  const cached = await getCachedOrderBook(symbol);
-  if (cached) return { ...cached.book, from_cache: true, cache_age_ms: cached.age_ms };
+  if (!options.bypassCache) {
+    const cached = await getCachedOrderBook(symbol);
+    if (cached) return { ...cached.book, from_cache: true, cache_age_ms: cached.age_ms };
+  }
 
   // Fall back to Bitkub REST API (may be stale — normalizeOrderBook will fix prices)
   const url = `${BITKUB_API}/market/books?sym=${symbol}&lmt=${limit}&_t=${Date.now()}`;

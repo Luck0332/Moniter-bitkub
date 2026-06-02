@@ -527,6 +527,12 @@ export default function AdminPage() {
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       {liqLastUpdate && <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{liqLastUpdate}</span>}
+                      <a
+                        className="btn btn-ghost btn-sm"
+                        href={_b + `/api/liquidity/orderbook/KUB/export?limit=2000&depth=${depth / 100}&threshold=${threshold / 100}`}
+                      >
+                        Export KUB 2000
+                      </a>
                       <button className="btn btn-primary btn-sm" onClick={fetchLiqSummary} disabled={liqLoading}>{liqLoading ? '…' : 'Refresh'}</button>
                     </div>
                   </div>
@@ -566,7 +572,7 @@ export default function AdminPage() {
                   </div>
                 </>
               ) : (
-                <LiquidityDetail detail={liqDetail} threshold={threshold} liqDetailVol={liqDetailVol} setLiqDetailVol={setLiqDetailVol} onRecalc={recalcDetail} onClose={() => { setLiqDetail(null); setLiqCoin(null); }} slipClass={slipClass} />
+                <LiquidityDetail detail={liqDetail} depth={depth} threshold={threshold} liqDetailVol={liqDetailVol} setLiqDetailVol={setLiqDetailVol} onRecalc={recalcDetail} onClose={() => { setLiqDetail(null); setLiqCoin(null); }} slipClass={slipClass} />
               )}
             </>
           )}
@@ -795,8 +801,8 @@ function LoanCard({ loan: l, index: i, onDelete, onUpdateEndDate }: {
 }
 
 // ── Liquidity Detail ──────────────────────────────────────────────────────────
-function LiquidityDetail({ detail: d, threshold, liqDetailVol, setLiqDetailVol, onRecalc, onClose, slipClass }: {
-  detail: LiqDetail; threshold: number;
+function LiquidityDetail({ detail: d, depth, threshold, liqDetailVol, setLiqDetailVol, onRecalc, onClose, slipClass }: {
+  detail: LiqDetail; depth: number; threshold: number;
   liqDetailVol: string; setLiqDetailVol: (v: string) => void;
   onRecalc: () => void; onClose: () => void;
   slipClass: (p: number | null) => string;
@@ -830,7 +836,15 @@ function LiquidityDetail({ detail: d, threshold, liqDetailVol, setLiqDetailVol, 
           <div className="page-title">{d.symbol} — Order Book</div>
           <div className="page-sub">Liquidity depth analysis</div>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={onClose}>&#8592; Back</button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <a
+            className="btn btn-ghost btn-sm"
+            href={_b + `/api/liquidity/orderbook/${d.symbol}/export?limit=2000&depth=${depth / 100}&threshold=${threshold / 100}${liqDetailVol ? `&custom_vol=${encodeURIComponent(liqDetailVol)}` : ''}`}
+          >
+            Export 2000
+          </a>
+          <button className="btn btn-ghost btn-sm" onClick={onClose}>&#8592; Back</button>
+        </div>
       </div>
       <div className="stats-row" style={{ marginBottom: d.price_normalized ? 8 : 16 }}>
         <div className="stat-card"><div className="stat-label">Best Bid</div><div className="stat-value mono">{fmtNum(d.best_bid, 2)}</div></div>
